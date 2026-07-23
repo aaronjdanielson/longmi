@@ -3,6 +3,15 @@
 # These are never copied into longmi (licensing is unclarified upstream);
 # they are pinned external checkouts located via environment variables.
 
+[orr_cannabis]
+# Private registry analysis (research-cannabis). Data are never copied into
+# longmi; validation/external/orr_gee_replication.py locates the project via
+# the environment variable and verifies that longmi's StatsmodelsGEE adapter
+# reproduces the manuscript's Table-1 Poisson GEE exactly.
+path_environment_variable = "LONGMI_ORR_REPO"
+required_files = ["data/ORR_V1V2_MEDS_merged_thru12.xlsx"]
+expected_frame = { participants = 3212, observations = 4828, baseline_users = 2304, baseline_nonusers = 908 }
+
 [wijesuriya_tutorial]
 # https://github.com/rushwije/Longitudinal_multiple_imputation_tutorial
 # R and Stata syntax for "Multiple imputation for longitudinal data:

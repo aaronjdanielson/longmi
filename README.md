@@ -77,11 +77,19 @@ backend; single-chain autocorrelation/ESS for the Gaussian backend),
 records the seed, bit generator, and package version. A failed optimizer
 or materially indefinite curvature refuses to impute rather than warn.
 
-Analyses plug in through `AnalysisModel.fit`; wrap plain functions with
-`CallableAnalysis`. Next milestones: statsmodels GEE/GLM adapters, the MI
-arm of the epil example, then the simulation and cross-language
-statistical validation suite — the backends are not claimed statistically
-validated until that bias/coverage evidence exists.
+Analyses plug in through `AnalysisModel.fit`: `StatsmodelsGEE` adapts a
+marginal GEE (formula, cluster column, family, fresh working-correlation
+instance per completed dataset, robust sandwich covariance), and
+`CallableAnalysis` wraps plain functions. The adapter is verified to be a
+transparent wrapper — it reproduces a direct statsmodels fit exactly,
+including on the motivating registry analysis
+([validation/external/orr_gee_replication.py](validation/external/orr_gee_replication.py),
+private data located by env var, never redistributed).
+
+Next milestones: `StatsmodelsGLM`, the MI arm of the epil example, then
+the simulation and cross-language statistical validation suite — the
+backends are not claimed statistically validated until that bias/coverage
+evidence exists.
 
 ## Examples and validation data
 

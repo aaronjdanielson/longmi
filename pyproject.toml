@@ -23,7 +23,8 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+analysis = ["statsmodels>=0.14"]
+dev = ["pytest>=7.0", "statsmodels>=0.14"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/longmi"]
