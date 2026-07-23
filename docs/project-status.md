@@ -14,8 +14,8 @@ expected to stabilize after the simulation grid below is complete.
 | --- | --- | --- | --- | --- | --- | --- |
 | `LongitudinalData` / completion invariants | complete | complete | n/a | n/a | n/a | experimental |
 | `pool_rubin` (Rubin + Barnard–Rubin) | complete | complete | n/a | **complete** — bit-compatible with `mice::pool.scalar`, verified at 1e-12 incl. boundary cases | n/a | experimental |
-| `JointGaussianImputer` | complete | complete | chain autocorrelation/ESS per run | pending | **initial study passing** (MCAR & MAR, wave-3 treatment effect; see below) | experimental |
-| `NegativeBinomialImputer` | complete | complete | optimizer, curvature, quadrature, grid boundary mass | pending | **initial study passing** (MAR, GEE interaction target; see below) | experimental |
+| `JointGaussianImputer` | complete | complete | chain autocorrelation/ESS per run | pending | **initial matrix passing** (MCAR, monotone & intermittent MAR, expected-failure demos; see below) | experimental |
+| `NegativeBinomialImputer` | complete | complete | optimizer, curvature, quadrature, grid boundary mass | pending | **initial matrix passing** (monotone & intermittent MAR, high-missingness stress, expected-failure demos, delta curve; see below) | experimental |
 | `StatsmodelsGEE` adapter | complete | complete — exact agreement with direct statsmodels fits, incl. the motivating registry analysis (private data, external harness) | n/a | n/a | covered via NB study | experimental |
 | `StatsmodelsGLM` adapter | complete | complete | n/a | n/a | pending | experimental |
 | Delta-adjusted MNAR sensitivity | complete (scalar delta; group/wave-specific deltas planned) | complete | n/a | pending | pending | experimental |
@@ -24,20 +24,46 @@ expected to stabilize after the simulation grid below is complete.
 
 ## Simulation evidence to date
 
-Seeded studies in `tests/simulation/` (`pytest -m slow`), correct-model
-specification, 60 replications (scale with `LONGMI_SIM_REPS`):
+Seeded studies in `tests/simulation/` (`pytest -m slow`) with
+pre-specified, Monte-Carlo-aware gates; smoke run at 40 replications
+(scale with `LONGMI_SIM_REPS`; the archived 1000-replicate release report
+is pending). Standardized bias = bias / empirical SD; SE ratio = mean
+reported SE / empirical SD.
 
-| Study | Bias (MC SE) | 95% CI coverage | Notes |
-| --- | --- | --- | --- |
-| Gaussian imputer, MCAR 25%, wave-3 treatment effect | −0.006 (0.022) | 0.983 | mild overcoverage expected from t-reference at M = 10 |
-| Gaussian imputer, sequential MAR, same target | −0.042 (0.028) | 0.967 | |
-| NB imputer + Poisson GEE + Rubin, sequential MAR, treat×wave-3 | −0.045 (0.029) | 0.967 | truth calibrated on a large complete dataset (marginal estimand) |
+**Validated scenarios** (correct model; gates: low failure rate,
+unbiasedness, nominal coverage, SE calibration):
 
-Not yet demonstrated: misspecified-model failure modes, intermittent
-missingness, wider grids over sample size / missingness fraction /
-correlation / overdispersion, delta-shift response curves, R parity for
-the imputation backends. **The backends should not be described as
-statistically validated beyond this table.**
+| Study | Std. bias | Coverage | SE ratio | Mean FMI | Failures |
+| --- | --- | --- | --- | --- | --- |
+| Gaussian, MCAR 25%, wave-3 treatment effect | −0.08 | 1.000 | 1.12 | 0.24 | 0/40 |
+| Gaussian, monotone MAR, same target | −0.10 | 1.000 | 1.09 | 0.34 | 0/40 |
+| Gaussian, intermittent (non-monotone) MAR | +0.21 | 0.975 | 1.18 | 0.21 | 0/40 |
+| NB + Poisson GEE + Rubin, monotone MAR, treat×wave-3 | −0.09 | 0.950 | 1.11 | 0.37 | 0/40 |
+| NB + GEE, intermittent MAR | +0.25 | 0.925 | 0.95 | 0.27 | 0/40 |
+| NB + GEE, high-missingness stress (ORR-like attrition) | +0.16 | 0.950 | 1.09 | **0.59** | 0/40 |
+
+(Standardized biases at 40 reps carry MC SE ≈ 0.16; the gates account for
+this and tighten automatically at higher replication counts.)
+
+**Expected-failure demonstrations** (one assumption deliberately violated;
+gates: the violation must visibly bite):
+
+| Study | Violated | Std. bias | Coverage | Note |
+| --- | --- | --- | --- | --- |
+| NB imputation omitting the exposure-by-time interaction | A8 | **−1.31** (attenuation) | 0.950 | bias is masked by conservative Rubin SEs (SE ratio 1.46) — the Meng (1994) uncongeniality phenomenon in action |
+| MNAR generation analyzed under MAR (NB, wave-3 mean) | A2 | **−8.12** | **0.000** | MAR MI does not rescue MNAR |
+| Gaussian imputation omitting a covariate driving outcome and dropout | A5/A8 | **−1.08** | 0.800 | conditioning on too little turns MAR into effective MNAR |
+
+**Delta-response curve** (NB, shared randomness across scenarios): the
+pooled wave-3 mean is strictly increasing in delta
+(×0.70 → 6.28, MAR → 7.92, ×1.40 → 9.66), brackets the MAR result, and its
+spread matches the imputed share of wave-3 cells.
+
+Not yet demonstrated: wider grids over sample size / missingness fraction
+/ correlation / overdispersion, misspecified dependence structures, R
+parity for the imputation backends, the archived high-replication report.
+**The backends should not be described as statistically validated beyond
+this table.**
 
 ## Cross-language validation
 

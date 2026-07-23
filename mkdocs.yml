@@ -39,6 +39,7 @@ nav:
   - Examples:
       - Epilepsy counts: examples/epilepsy_counts.md
       - CATS tutorial validation: examples/cats_tutorial_validation.md
+  - References: references.md
   - Project status: project-status.md
 
 plugins:

@@ -16,7 +16,7 @@ import pytest
 from longmi import AnalysisEstimate, CallableAnalysis, LongitudinalData, pool_rubin
 from longmi.impute import JointGaussianImputer
 
-from harness import n_reps, run_study
+from harness import RepOutcome, n_reps, run_study
 
 pytestmark = pytest.mark.slow
 
@@ -66,6 +66,18 @@ def impose_mar(frame, rng):
     return out
 
 
+def impose_intermittent_mar(frame, rng):
+    """Non-monotone MAR: each post-baseline cell is missing with
+    probability depending on the participant's (always observed) wave-1
+    outcome — holes, not dropout."""
+    out = frame.copy()
+    wave1 = frame[frame["wave"] == 1].set_index("pid")["y"]
+    p_miss = 1.0 / (1.0 + np.exp(-(0.35 * out["pid"].map(wave1) - 2.0)))
+    holes = (out["wave"] > 1) & (rng.uniform(size=len(out)) < p_miss)
+    out.loc[holes, "y"] = np.nan
+    return out
+
+
 def wave3_treatment_effect(frame) -> AnalysisEstimate:
     sub = frame[frame["wave"] == 3]
     x = np.column_stack([np.ones(len(sub)), sub["treat"].to_numpy()])
@@ -101,9 +113,19 @@ def make_replicate(impose):
         )
         j = pooled.names.index("treat")
         lo, hi = pooled.conf_int(0.95)[j]
-        return float(pooled.qbar[j]), float(lo), float(hi)
+        return RepOutcome(
+            float(pooled.qbar[j]), float(lo), float(hi),
+            se=float(pooled.se[j]), fmi=float(pooled.fmi[j]),
+        )
 
     return one_replicate
+
+
+def check_validated(summary):
+    summary.assert_low_failure_rate()
+    summary.assert_unbiased()
+    summary.assert_nominal_coverage()
+    summary.assert_se_calibrated()
 
 
 class TestGaussianImputerFrequentistValidity:
@@ -112,13 +134,18 @@ class TestGaussianImputerFrequentistValidity:
             make_replicate(impose_mcar), TRUTH, n_reps(100), seed=901
         )
         print(f"\ngaussian mcar: {summary}")
-        summary.assert_unbiased()
-        summary.assert_nominal_coverage()
+        check_validated(summary)
 
     def test_mar_bias_and_coverage(self):
         summary = run_study(
             make_replicate(impose_mar), TRUTH, n_reps(100), seed=902
         )
         print(f"\ngaussian mar: {summary}")
-        summary.assert_unbiased()
-        summary.assert_nominal_coverage()
+        check_validated(summary)
+
+    def test_intermittent_mar_bias_and_coverage(self):
+        summary = run_study(
+            make_replicate(impose_intermittent_mar), TRUTH, n_reps(100), seed=904
+        )
+        print(f"\ngaussian intermittent mar: {summary}")
+        check_validated(summary)

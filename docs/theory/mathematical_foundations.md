@@ -5,7 +5,7 @@ new proof of multiple imputation. This chapter states the framework, the
 assumptions (detailed in [assumptions.md](assumptions.md)), and four cited
 propositions. Each proposition records what is proved, under which
 assumptions, and where the original proof lives. Full citations are in
-[REFERENCES.md](https://github.com/aaronjdanielson/longmi/blob/main/REFERENCES.md).
+[references.md](../references.md).
 
 ## What these propositions establish
 
