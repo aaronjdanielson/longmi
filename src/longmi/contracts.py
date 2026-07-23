@@ -9,7 +9,14 @@ these are the contracts the rest of the package is written against.
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
-from typing import Any, Mapping, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Mapping, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+
+    from .data import CompletedDatasetCollection, LongitudinalData
+    from .results import AnalysisEstimate
 
 __all__ = ["ValidityDeclaration", "Imputer", "AnalysisModel"]
 
@@ -50,6 +57,28 @@ class ValidityDeclaration:
     supported_outcome_types: tuple[str, ...] = ()
     notes: str | None = None
 
+    # Provenance of each field in longmi's pipeline: "verified" claims are
+    # mechanically enforced (CompletedDatasetCollection construction, the
+    # pooling call itself); "verified by backend" are enforced by the
+    # producing imputer's implementation; "declared" are analyst or backend
+    # assertions that longmi cannot prove (MAR is not testable; congeniality
+    # is argued, not proved). Rendered so the report never overstates.
+    _PROVENANCE = {
+        "missingness_assumption": "declared",
+        "mar_empirically_testable": "declared",
+        "sampling_unit": "declared",
+        "parameter_uncertainty_propagated": "verified by backend",
+        "outcome_uncertainty_propagated": "verified by backend",
+        "observed_outcomes_preserved": "verified",
+        "analysis_terms_in_imputation_model": "declared",
+        "longitudinal_dependence_modeled": "declared",
+        "analysis_nested_in_imputation_model": "declared",
+        "congeniality_status": "declared",
+        "pooling_method": "verified",
+        "mnar_sensitivity_performed": "declared",
+        "supported_outcome_types": "declared",
+    }
+
     _LABELS = {
         "missingness_assumption": "Missingness assumption",
         "mar_empirically_testable": "MAR empirically testable",
@@ -89,7 +118,11 @@ class ValidityDeclaration:
             value = getattr(self, name)
             if name == "notes" and value is None:
                 continue
-            lines.append(f"{label}: {_render(value)}")
+            rendered = _render(value)
+            tag = self._PROVENANCE.get(name)
+            if tag and rendered != _NOT_DECLARED:
+                rendered = f"{rendered} [{tag}]"
+            lines.append(f"{label}: {rendered}")
         return "\n".join(lines)
 
 
@@ -105,10 +138,14 @@ class Imputer(Protocol):
     """
 
     @property
-    def declaration(self) -> ValidityDeclaration: ...
+    def declaration(self) -> "ValidityDeclaration": ...
 
-    def impute(self, data, m: int, random_state):  # -> CompletedDatasetCollection
-        ...
+    def impute(
+        self,
+        data: "LongitudinalData",
+        m: int,
+        random_state: "np.random.Generator",
+    ) -> "CompletedDatasetCollection": ...
 
 
 @runtime_checkable
@@ -120,5 +157,4 @@ class AnalysisModel(Protocol):
     with identical parameter naming and ordering for every completed dataset.
     """
 
-    def fit(self, frame):  # -> AnalysisEstimate
-        ...
+    def fit(self, frame: "pd.DataFrame") -> "AnalysisEstimate": ...

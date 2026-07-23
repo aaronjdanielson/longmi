@@ -48,9 +48,16 @@ The deterministic core is implemented and validated:
   ([validation/r/rubin_reference.R](validation/r/rubin_reference.R),
   [tests/cross_language/](tests/cross_language/)).
 
-Imputation models (joint Gaussian reference imputer, negative-binomial GLMM)
-are the next milestones; only their interfaces exist today
-([src/longmi/contracts.py](src/longmi/contracts.py)).
+The first imputation backend is implemented:
+
+- `JointGaussianImputer` — posterior-predictive joint Gaussian imputation
+  for fixed-wave data via exact conjugate data augmentation (Schafer 1997),
+  wave-saturated mean model, unstructured covariance, delta-adjustment
+  support ([src/longmi/impute/gaussian.py](src/longmi/impute/gaussian.py),
+  [docs/algorithms/joint_gaussian_imputer.md](docs/algorithms/joint_gaussian_imputer.md)).
+
+Next milestones: the negative-binomial GLMM imputer, analysis adapters,
+then the simulation and cross-language statistical validation suite.
 
 ## Examples and validation data
 

@@ -15,22 +15,30 @@ time so that imputers and analyses can rely on them:
 
 from __future__ import annotations
 
-from typing import Any, Callable, Iterator, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Iterator, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
+
+from .results import AnalysisEstimate
+
+if TYPE_CHECKING:
+    from .contracts import AnalysisModel, ValidityDeclaration
 
 __all__ = ["LongitudinalData", "CompletedDatasetCollection"]
 
 _OUTCOME_TYPES = ("continuous", "count")
 
 
-def _check_count_values(values: pd.Series, what: str) -> None:
+def _check_outcome_values(values: pd.Series, outcome_type: str, what: str) -> None:
     arr = values.to_numpy(dtype=float)
-    if np.any(arr < 0):
-        raise ValueError(f"{what}: count outcome has negative values")
-    if not np.array_equal(arr, np.floor(arr)):
-        raise ValueError(f"{what}: count outcome has non-integer values")
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(f"{what}: outcome contains non-finite values")
+    if outcome_type == "count":
+        if np.any(arr < 0):
+            raise ValueError(f"{what}: count outcome has negative values")
+        if not np.array_equal(arr, np.floor(arr)):
+            raise ValueError(f"{what}: count outcome has non-integer values")
 
 
 class LongitudinalData:
@@ -54,7 +62,16 @@ class LongitudinalData:
         integers wherever observed, and completed datasets must keep them so.
     times:
         Optional explicit design times. When given, every observed time must
-        belong to this set.
+        belong to this set, and (with ``require_complete_grid``, the default)
+        every participant must have a row at every design time — an absent
+        row is not the same thing as a row with a missing response, and no
+        imputer can fill a row that does not exist. Add rows with ``NaN``
+        outcomes before imputation. 0.1 assumes every participant is
+        eligible at every declared time; distinguishing structural
+        ineligibility (an ``eligible`` column) is future work.
+    require_complete_grid:
+        When ``times`` is declared, enforce the complete participant-by-wave
+        row grid described above. Opting out is explicit.
 
     The stored frame is sorted by ``(id, time)`` with a fresh integer index,
     making row order — and hence imputation-value alignment and analysis term
@@ -71,6 +88,7 @@ class LongitudinalData:
         predictor_cols: Sequence[str] = (),
         outcome_type: str = "continuous",
         times: Sequence[Any] | None = None,
+        require_complete_grid: bool = True,
     ) -> None:
         if outcome_type not in _OUTCOME_TYPES:
             raise ValueError(
@@ -105,6 +123,9 @@ class LongitudinalData:
             )
 
         if times is not None:
+            times = tuple(times)
+            if len(set(times)) != len(times):
+                raise ValueError("declared design times must be unique")
             allowed = set(times)
             observed_times = set(data[time_col].unique().tolist())
             unknown = observed_times - allowed
@@ -113,6 +134,21 @@ class LongitudinalData:
                     f"times {sorted(unknown, key=str)} not in the declared "
                     f"design times {sorted(allowed, key=str)}"
                 )
+            if require_complete_grid:
+                ids = pd.unique(data[id_col])
+                expected = pd.MultiIndex.from_product(
+                    [ids, times], names=[id_col, time_col]
+                )
+                actual = pd.MultiIndex.from_frame(data[[id_col, time_col]])
+                missing_pairs = expected.difference(actual)
+                if len(missing_pairs):
+                    examples = missing_pairs.tolist()[:5]
+                    raise ValueError(
+                        "the longitudinal grid is incomplete: missing "
+                        f"participant-time rows include {examples}; add rows "
+                        "with NaN outcomes before imputation (an absent row "
+                        "is not a row with a missing response)"
+                    )
 
         for col in predictor_cols:
             if data[col].isna().any():
@@ -124,8 +160,10 @@ class LongitudinalData:
         outcome = pd.to_numeric(data[outcome_col], errors="raise")
         data[outcome_col] = outcome.astype(float)
         observed = data[outcome_col].notna()
-        if outcome_type == "count" and observed.any():
-            _check_count_values(data.loc[observed, outcome_col], "observed data")
+        if observed.any():
+            _check_outcome_values(
+                data.loc[observed, outcome_col], outcome_type, "observed data"
+            )
 
         data = data.sort_values([id_col, time_col], kind="mergesort").reset_index(
             drop=True
@@ -168,7 +206,13 @@ class LongitudinalData:
         return self.n_missing == 0
 
     def observed_times(self) -> tuple[Any, ...]:
-        return tuple(sorted(self._frame[self.time_col].unique().tolist(), key=str))
+        """Times present in the data, in design order when declared."""
+        if self.times is not None:
+            present = set(self._frame[self.time_col].unique().tolist())
+            return tuple(t for t in self.times if t in present)
+        return tuple(
+            self._frame[self.time_col].drop_duplicates().sort_values().tolist()
+        )
 
     # -- completion -------------------------------------------------------
 
@@ -234,8 +278,7 @@ class LongitudinalData:
                 "observed values must be preserved exactly"
             )
 
-        if self.outcome_type == "count":
-            _check_count_values(outcome, "completed data")
+        _check_outcome_values(outcome, self.outcome_type, "completed data")
 
 
 class CompletedDatasetCollection:
@@ -253,6 +296,7 @@ class CompletedDatasetCollection:
         frames: Sequence[pd.DataFrame],
         *,
         metadata: Mapping[str, Any] | None = None,
+        declaration: "ValidityDeclaration | None" = None,
     ) -> None:
         frames = tuple(f.reset_index(drop=True) for f in frames)
         if len(frames) == 0:
@@ -265,6 +309,9 @@ class CompletedDatasetCollection:
         self.source = source
         self._frames = frames
         self.metadata = dict(metadata or {})
+        # the producing imputer's validity declaration, carried so pooling
+        # can attach it without the caller reconstructing core metadata
+        self.declaration = declaration
 
     @property
     def m(self) -> int:
@@ -279,11 +326,22 @@ class CompletedDatasetCollection:
     def __getitem__(self, index: int) -> pd.DataFrame:
         return self._frames[index].copy()
 
-    def analyze(self, fit: Callable[[pd.DataFrame], Any]) -> list[Any]:
-        """Apply a complete-data analysis to each completed dataset in order.
+    def analyze(self, model: "AnalysisModel") -> list[AnalysisEstimate]:
+        """Fit a complete-data analysis to each completed dataset in order.
 
-        ``fit`` is an :class:`longmi.contracts.AnalysisModel`-style callable
-        returning an :class:`longmi.results.AnalysisEstimate`; the list is
-        ready for :func:`longmi.pooling.pool_rubin`.
+        ``model`` is an :class:`longmi.contracts.AnalysisModel`: its
+        ``fit(frame)`` is called once per completed dataset and must return
+        an :class:`AnalysisEstimate`. Wrap a plain function with
+        :class:`longmi.analysis.CallableAnalysis`. The list is ready for
+        :func:`longmi.pooling.pool_rubin`.
         """
-        return [fit(frame) for frame in self]
+        estimates: list[AnalysisEstimate] = []
+        for index, frame in enumerate(self, start=1):
+            estimate = model.fit(frame)
+            if not isinstance(estimate, AnalysisEstimate):
+                raise TypeError(
+                    f"analysis of completed dataset {index} returned "
+                    f"{type(estimate).__name__}, expected AnalysisEstimate"
+                )
+            estimates.append(estimate)
+        return estimates

@@ -2,10 +2,28 @@
 
 Implements the pooled point estimate, total variance
 ``T = Ubar + (1 + 1/M) B``, relative increase in variance, fraction of
-missing information, and Barnard–Rubin small-sample degrees of freedom —
-numerically matching ``mice::pool.scalar`` (rule ``"rubin1987"``) per
-parameter. Sources: Rubin (1987); Barnard & Rubin (1999). Derivations and
-the exact formulas are in ``docs/algorithms/rubin_pooling.md``.
+missing information, and degrees of freedom. Sources: Rubin (1987);
+Barnard & Rubin (1999). Derivations and exact formulas:
+``docs/algorithms/rubin_pooling.md``.
+
+Degrees-of-freedom methods
+--------------------------
+``"barnard_rubin_mice"`` (default)
+    Bit-compatible with ``mice::pool.scalar`` (rule ``"rubin1987"``),
+    including mice's clamp of ``lambda`` below 1e-4 when computing degrees
+    of freedom. Zero between-imputation variance therefore yields a very
+    large but *finite* df of ``(M - 1) * 1e8`` (times the Barnard-Rubin
+    factor when ``dfcom`` is finite) and an fmi of about ``2 / (df + 3)``,
+    exactly as mice reports.
+``"barnard_rubin_exact"``
+    The same formulas without the clamp, with the ``lambda -> 0`` limit
+    taken analytically: zero between-imputation variance yields
+    ``riv = lambda = 0``, infinite df (normal reference), and
+    ``fmi = riv / (1 + riv) = 0`` when ``dfcom`` is infinite; with finite
+    ``dfcom`` the Barnard-Rubin observed-data df applies.
+``"large_sample"``
+    Rubin (1987) large-sample df ``(M - 1) / lambda**2`` even when
+    ``dfcom`` is provided (no Barnard-Rubin adjustment), without the clamp.
 """
 
 from __future__ import annotations
@@ -14,9 +32,13 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 
+from ..contracts import ValidityDeclaration
 from ..results import AnalysisEstimate, RubinPooledResult
 
 __all__ = ["pool_rubin"]
+
+_DF_METHODS = ("barnard_rubin_mice", "barnard_rubin_exact", "large_sample")
+_MICE_LAMBDA_FLOOR = 1e-4
 
 
 def _common_dfcom(estimates: Sequence[AnalysisEstimate]) -> float | None:
@@ -28,10 +50,34 @@ def _common_dfcom(estimates: Sequence[AnalysisEstimate]) -> float | None:
     return values.pop()
 
 
+def _degrees_of_freedom(
+    m: int, lam: np.ndarray, dfcom: float | None, df_method: str
+) -> np.ndarray:
+    finite_dfcom = dfcom is not None and np.isfinite(dfcom)
+    if df_method == "barnard_rubin_mice":
+        lam_df = np.maximum(lam, _MICE_LAMBDA_FLOOR)
+        df_old = (m - 1) / np.square(lam_df)
+        if finite_dfcom:
+            df_obs = (dfcom + 1.0) / (dfcom + 3.0) * dfcom * (1.0 - lam_df)
+            return df_old * df_obs / (df_old + df_obs)
+        return df_old
+    with np.errstate(divide="ignore"):
+        df_old = np.where(lam > 0, (m - 1) / np.square(lam), np.inf)
+    if df_method == "large_sample" or not finite_dfcom:
+        return df_old
+    # barnard_rubin_exact with finite dfcom
+    df_obs = (dfcom + 1.0) / (dfcom + 3.0) * dfcom * (1.0 - lam)
+    with np.errstate(invalid="ignore"):
+        return np.where(
+            np.isfinite(df_old), df_old * df_obs / (df_old + df_obs), df_obs
+        )
+
+
 def pool_rubin(
     estimates: Sequence[AnalysisEstimate],
     *,
-    validity: Mapping[str, Any] | None = None,
+    df_method: str = "barnard_rubin_mice",
+    validity: Mapping[str, Any] | ValidityDeclaration | None = None,
 ) -> RubinPooledResult:
     """Pool completed-data estimates with Rubin's rules.
 
@@ -40,27 +86,25 @@ def pool_rubin(
     estimates:
         One :class:`AnalysisEstimate` per completed dataset, ``M >= 2``. All
         must share the identical parameter name ordering and the same
-        ``dfcom``; a permuted ordering is an error, never silently realigned.
+        ``dfcom``; a permuted ordering is an error, never silently
+        realigned. The result is invariant to the order of the list.
+    df_method:
+        Degrees-of-freedom rule; see the module docstring. The default,
+        ``"barnard_rubin_mice"``, is bit-compatible with
+        ``mice::pool.scalar``.
     validity:
-        Optional validity-declaration fields (see
-        :class:`longmi.contracts.ValidityDeclaration`) to attach to the
-        result for ``validity_report()``.
-
-    Returns
-    -------
-    RubinPooledResult
+        Validity-declaration fields to attach for ``validity_report()`` —
+        either a mapping or a :class:`ValidityDeclaration` (e.g. carried on
+        ``CompletedDatasetCollection.declaration`` from the imputer).
 
     Notes
     -----
-    Between-imputation variance uses the ``M - 1`` denominator. Degrees of
-    freedom follow Barnard & Rubin (1999) when ``dfcom`` is finite and
-    Rubin's ``(M - 1) / lambda**2`` otherwise; a parameter with zero
-    between-imputation variance has ``riv = lambda = fmi = 0`` and infinite
-    degrees of freedom. ``mice`` additionally clamps ``lambda`` below 1e-4
-    when computing Barnard–Rubin degrees of freedom; `longmi` does not, so
-    agreement with ``mice`` is exact only for ``lambda >= 1e-4`` (any
-    realistic amount of missing information).
+    Between-imputation variance uses the ``M - 1`` denominator. ``fmi`` is
+    ``(riv + 2/(df + 3)) / (1 + riv)`` with the reported df (its
+    ``df = inf`` limit is ``riv / (1 + riv)``).
     """
+    if df_method not in _DF_METHODS:
+        raise ValueError(f"df_method must be one of {_DF_METHODS}, got {df_method!r}")
     m = len(estimates)
     if m < 2:
         raise ValueError(f"Rubin pooling requires at least 2 imputations, got {m}")
@@ -76,7 +120,6 @@ def pool_rubin(
             )
     dfcom = _common_dfcom(estimates)
     names = first.names
-    p = first.p
 
     q = np.stack([est.estimates for est in estimates])  # (m, p)
     u = np.stack([est.covariance for est in estimates])  # (m, p, p)
@@ -100,19 +143,7 @@ def pool_rubin(
     riv = extra / ubar_diag
     lam = extra / t_diag
 
-    with np.errstate(divide="ignore"):
-        df_old = np.where(lam > 0, (m - 1) / np.square(lam), np.inf)
-    if dfcom is not None and np.isfinite(dfcom):
-        df_obs = (dfcom + 1.0) / (dfcom + 3.0) * dfcom * (1.0 - lam)
-        with np.errstate(invalid="ignore"):
-            df = np.where(
-                np.isfinite(df_old),
-                df_old * df_obs / (df_old + df_obs),
-                df_obs,
-            )
-    else:
-        df = df_old
-
+    df = _degrees_of_freedom(m, lam, dfcom, df_method)
     with np.errstate(invalid="ignore"):
         fmi = np.where(
             np.isfinite(df),
@@ -120,6 +151,8 @@ def pool_rubin(
             riv / (1.0 + riv),
         )
 
+    if isinstance(validity, ValidityDeclaration):
+        validity = validity.as_dict()
     return RubinPooledResult(
         names=names,
         m=m,

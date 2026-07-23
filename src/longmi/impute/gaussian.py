@@ -266,6 +266,7 @@ class JointGaussianImputer(BaseImputer):
         return CompletedDatasetCollection(
             data,
             completed_frames,
+            declaration=self.declaration,
             metadata={
                 "imputer": "JointGaussianImputer",
                 "burn_in": self.burn_in,

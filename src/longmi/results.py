@@ -8,6 +8,7 @@ The mathematical definitions implemented here are stated in
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any, Mapping
 
 import numpy as np
@@ -17,6 +18,15 @@ from scipy import stats
 __all__ = ["AnalysisEstimate", "RubinPooledResult"]
 
 _SYMMETRY_RTOL = 1e-8
+_PSD_RTOL = 1e-10
+
+
+def _freeze(arr: np.ndarray) -> np.ndarray:
+    """Own a copy and make it read-only: frozen dataclasses do not prevent
+    in-place mutation of array contents."""
+    out = np.array(arr, dtype=float, copy=True)
+    out.setflags(write=False)
+    return out
 
 
 def _as_vector(values: Any, p: int, what: str) -> np.ndarray:
@@ -25,7 +35,7 @@ def _as_vector(values: Any, p: int, what: str) -> np.ndarray:
         raise ValueError(f"{what} must have shape ({p},), got {arr.shape}")
     if not np.all(np.isfinite(arr)):
         raise ValueError(f"{what} contains non-finite values")
-    return arr
+    return _freeze(arr)
 
 
 def _as_covariance(values: Any, p: int, what: str) -> np.ndarray:
@@ -37,9 +47,15 @@ def _as_covariance(values: Any, p: int, what: str) -> np.ndarray:
     scale = np.max(np.abs(arr)) or 1.0
     if not np.allclose(arr, arr.T, rtol=0.0, atol=_SYMMETRY_RTOL * scale):
         raise ValueError(f"{what} is not symmetric")
-    if np.any(np.diag(arr) < 0):
-        raise ValueError(f"{what} has negative diagonal entries")
-    return 0.5 * (arr + arr.T)
+    sym = 0.5 * (arr + arr.T)
+    eig_scale = max(1.0, float(np.linalg.norm(sym, ord=2)))
+    min_eigenvalue = float(np.linalg.eigvalsh(sym).min())
+    if min_eigenvalue < -_PSD_RTOL * eig_scale:
+        raise ValueError(
+            f"{what} is not positive semidefinite; "
+            f"minimum eigenvalue={min_eigenvalue:.6g}"
+        )
+    return _freeze(sym)
 
 
 @dataclass(frozen=True)
@@ -88,6 +104,7 @@ class AnalysisEstimate:
             if not dfcom > 0:
                 raise ValueError("dfcom must be positive")
             object.__setattr__(self, "dfcom", dfcom)
+        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
 
     @property
     def p(self) -> int:
@@ -116,6 +133,50 @@ class RubinPooledResult:
     df: np.ndarray
     dfcom: float | None = None
     validity: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        names = tuple(str(n) for n in self.names)
+        if len(names) == 0 or len(set(names)) != len(names):
+            raise ValueError("names must be non-empty and unique")
+        object.__setattr__(self, "names", names)
+        p = len(names)
+        if int(self.m) < 2:
+            raise ValueError(f"m must be >= 2, got {self.m}")
+        object.__setattr__(self, "m", int(self.m))
+
+        object.__setattr__(self, "qbar", _as_vector(self.qbar, p, "qbar"))
+        for what in ("ubar", "b", "t"):
+            object.__setattr__(
+                self, what, _as_covariance(getattr(self, what), p, what)
+            )
+        scale = max(1.0, float(np.max(np.abs(self.t))))
+        expected_t = self.ubar + (1.0 + 1.0 / self.m) * self.b
+        if not np.allclose(self.t, expected_t, rtol=1e-10, atol=1e-12 * scale):
+            raise ValueError("t must equal ubar + (1 + 1/m) b")
+
+        for what, low, high in (
+            ("riv", 0.0, np.inf),
+            ("lambda_", 0.0, 1.0),
+            ("fmi", 0.0, 1.0),
+        ):
+            arr = _as_vector(getattr(self, what), p, what)
+            if np.any(arr < low) or np.any(arr > high):
+                raise ValueError(f"{what} must lie in [{low}, {high}]")
+            object.__setattr__(self, what, arr)
+
+        df = np.asarray(self.df, dtype=float)
+        if df.shape != (p,):
+            raise ValueError(f"df must have shape ({p},), got {df.shape}")
+        if np.any(np.isnan(df)) or np.any(df <= 0):
+            raise ValueError("df must be positive (infinity allowed)")
+        object.__setattr__(self, "df", _freeze(df))
+
+        if self.dfcom is not None and not float(self.dfcom) > 0:
+            raise ValueError("dfcom must be positive")
+        if self.validity is not None:
+            object.__setattr__(
+                self, "validity", MappingProxyType(dict(self.validity))
+            )
 
     @property
     def p(self) -> int:

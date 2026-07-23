@@ -26,12 +26,20 @@ class DeltaAdjustment:
         The shift applied to imputed values. ``0.0`` reproduces the MAR
         analysis.
     scale:
-        ``"linear_predictor"`` shifts on the model's link scale (for a log
-        link, ``delta = log(ratio)`` multiplies the imputed mean by
-        ``ratio``); ``"outcome"`` shifts the drawn outcome directly (count
-        outcomes are truncated at zero and rounded by the imputer).
+        ``"linear_predictor"`` shifts the model's link scale *before* the
+        missing value is drawn (for a log link, ``delta = log(ratio)``
+        multiplies the imputed mean by ``ratio``) — the supported
+        model-based pattern-mixture mechanism, and the only scale count
+        imputers accept. ``"outcome"`` is a deterministic post-draw
+        transformation of the drawn value, not a model-based adjustment;
+        it is supported for continuous responses only.
     label:
         Short name used in reports, e.g. ``"dropout 20% higher"``.
+
+    A single scalar delta is the 0.1 API. Differential adjustments by group
+    and wave (``delta[g, j]``, e.g. treated dropouts shifted only at later
+    waves) are planned; this dataclass will grow ``group``/``waves``
+    selectors rather than being frozen as the final public interface.
     """
 
     delta: float
