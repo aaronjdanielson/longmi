@@ -6,9 +6,11 @@ Theory and citations: Proposition 2 of
 [src/longmi/impute/base.py](../../src/longmi/impute/base.py) and
 [src/longmi/contracts.py](../../src/longmi/contracts.py).
 
-Concrete backends (joint Gaussian reference imputer; negative-binomial GLMM
-imputer) are scheduled after the deterministic core; this file fixes the
-contract they must satisfy.
+Two concrete backends implement this contract — the joint Gaussian
+reference imputer ([joint_gaussian_imputer.md](joint_gaussian_imputer.md))
+and the negative-binomial GLMM imputer
+([negative_binomial_glmm.md](negative_binomial_glmm.md)); this file fixes
+the contract they satisfy.
 
 ## Algorithm
 

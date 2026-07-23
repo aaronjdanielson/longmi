@@ -20,11 +20,12 @@ the Jeffreys prior p(B, Sigma) ~ |Sigma|^-(J+1)/2:
     P-step:  Sigma | Y_complete    ~ InverseWishart(n - K, S)
              B | Sigma, Y_complete ~ MatrixNormal(B_hat, (X'X)^-1, Sigma)
 
-Both parameter and outcome uncertainty are propagated (A6). Successive
-kept imputations are separated by `thin` sweeps after an initial `burn_in`;
-they are draws from one chain, so `thin` should be large enough that
-imputations are effectively independent (the default is conservative for
-the small fixed-wave problems this backend targets).
+Both parameter and outcome uncertainty are propagated (A6). Kept
+imputations come from a single chain separated by `thin` sweeps after
+`burn_in`; every run reports single-chain autocorrelation and
+effective-sample-size diagnostics (`GaussianChainDiagnostics`) so the
+adequacy of `burn_in`/`thin` is inspected rather than asserted. Wave order
+follows the declared design order, never a re-sort.
 
 Scope: continuous outcomes; a complete participant-by-wave row grid
 (missing outcomes allowed, missing rows not); predictors constant within
@@ -33,15 +34,28 @@ participant. Time-varying predictors need the GLMM backends.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from scipy import stats
 
 from ..contracts import ValidityDeclaration
 from ..data import CompletedDatasetCollection, LongitudinalData
+from ..diagnostics import GaussianChainDiagnostics
 from ..scenarios import DeltaAdjustment
-from .base import BaseImputer
+from .base import BaseFit, BaseImputer, data_fingerprint, normalize_random_state
 
-__all__ = ["JointGaussianImputer"]
+__all__ = ["JointGaussianImputer", "JointGaussianFit"]
+
+
+def _lag1_autocorrelation(series: np.ndarray) -> float:
+    if len(series) < 3:
+        return float("nan")
+    a = series - series.mean()
+    denom = float(a @ a)
+    if denom == 0.0:
+        return 0.0
+    return float(a[:-1] @ a[1:] / denom)
 
 
 class JointGaussianImputer(BaseImputer):
@@ -54,9 +68,15 @@ class JointGaussianImputer(BaseImputer):
     thin:
         Sweeps between successive kept imputations.
     delta:
-        Optional :class:`DeltaAdjustment` applied to imputed values (MNAR
-        sensitivity). For the identity link the ``linear_predictor`` and
-        ``outcome`` scales coincide: imputed draws are shifted by ``delta``.
+        Default :class:`DeltaAdjustment` scenario; ``fit(...).impute(...,
+        delta=...)`` overrides per run. For the identity link the
+        ``linear_predictor`` and ``outcome`` scales coincide: imputed draws
+        are shifted by ``delta``.
+    allow_undeclared_times:
+        Backends imputing longitudinal dropout need the declared design
+        grid (``LongitudinalData(times=...)``) — absent rows cannot be
+        imputed. Pass ``True`` to accept data without declared times, in
+        which case the observed times are treated as the full design.
     """
 
     def __init__(
@@ -65,18 +85,23 @@ class JointGaussianImputer(BaseImputer):
         burn_in: int = 500,
         thin: int = 100,
         delta: DeltaAdjustment | None = None,
+        allow_undeclared_times: bool = False,
     ) -> None:
         if burn_in < 0 or thin < 1:
             raise ValueError("burn_in must be >= 0 and thin >= 1")
         self.burn_in = burn_in
         self.thin = thin
         self.delta = delta
+        self.allow_undeclared_times = allow_undeclared_times
 
     @property
     def declaration(self) -> ValidityDeclaration:
+        return self._declaration(self.delta)
+
+    def _declaration(self, delta: DeltaAdjustment | None) -> ValidityDeclaration:
         return ValidityDeclaration(
             missingness_assumption=(
-                "MAR" if self.delta is None else f"MNAR(delta={self.delta.delta})"
+                "MAR" if delta is None else f"MNAR(delta={delta.delta})"
             ),
             mar_empirically_testable=False,
             sampling_unit="participant",
@@ -92,12 +117,14 @@ class JointGaussianImputer(BaseImputer):
                 "nested in the imputation model"
             ),
             pooling_method="Rubin",
-            mnar_sensitivity_performed=self.delta is not None,
+            mnar_sensitivity_performed=delta is not None,
             supported_outcome_types=("continuous",),
             notes=(
                 "Exact conjugate data augmentation under the Jeffreys prior "
-                "(Schafer 1997); imputations come from one chain separated "
-                f"by thin={self.thin} sweeps after burn_in={self.burn_in}."
+                "(Schafer 1997); kept imputations come from one chain "
+                f"separated by thin={self.thin} sweeps after "
+                f"burn_in={self.burn_in} — judge adequacy from the run's "
+                "chain diagnostics, not from the defaults."
             ),
         )
 
@@ -109,13 +136,17 @@ class JointGaussianImputer(BaseImputer):
                 "JointGaussianImputer supports continuous outcomes only; "
                 f"got outcome_type={data.outcome_type!r}"
             )
+        if data.times is None and not self.allow_undeclared_times:
+            raise ValueError(
+                "declare the design grid (LongitudinalData(times=...)) so "
+                "absent rows are caught before imputation, or construct the "
+                "imputer with allow_undeclared_times=True to treat the "
+                "observed times as the full design"
+            )
         frame = data.frame
-        # sorted to match LongitudinalData's (id, time) row order, so that
-        # flattened draws align with completed_with()
-        waves = sorted(
-            data.times
-            if data.times is not None
-            else frame[data.time_col].unique().tolist()
+        # declared design order takes precedence over natural sorting
+        waves = list(data.times) if data.times is not None else list(
+            data.observed_times()
         )
         j = len(waves)
         if j < 2:
@@ -124,7 +155,6 @@ class JointGaussianImputer(BaseImputer):
         y_wide = frame.pivot(
             index=data.id_col, columns=data.time_col, values=data.outcome_col
         )
-        missing_rows = y_wide.isna().all(axis=1)
         if set(y_wide.columns) != set(waves) or y_wide.shape != (
             data.n_participants,
             j,
@@ -168,10 +198,13 @@ class JointGaussianImputer(BaseImputer):
                 f"posterior for Sigma is improper: need n - K >= J, got "
                 f"n={n}, K={k}, J={j}"
             )
-        _ = missing_rows  # participants may miss every wave; MAR handles it
         return y_wide.to_numpy(dtype=float), x, waves
 
-    # -- data augmentation ------------------------------------------------
+    def fit(self, data: LongitudinalData) -> "JointGaussianFit":
+        y, x, waves = self._wide_arrays(data)
+        return JointGaussianFit(self, data, y, x, waves)
+
+    # -- draws (used by the fit object) -----------------------------------
 
     @staticmethod
     def _initial_fill(y: np.ndarray, x: np.ndarray) -> np.ndarray:
@@ -226,52 +259,110 @@ class JointGaussianImputer(BaseImputer):
             out[i, mis] = cond_mean + chol @ rng.standard_normal(int(mis.sum()))
         return out
 
+
+class JointGaussianFit(BaseFit):
+    """Validated design and precomputations for one dataset.
+
+    Each :meth:`impute` call runs a fresh data-augmentation chain (the
+    conjugate conditionals need no upfront estimation), so scenario runs
+    with the same ``random_state`` share identical underlying draws — a
+    delta scenario differs from MAR only by the deterministic shift.
+    """
+
+    def __init__(self, imputer, data, y, x, waves):
+        self._imputer = imputer
+        self._data = data
+        self._y = y
+        self._x = x
+        self._waves = waves
+        self._xtx_inv = np.linalg.inv(x.T @ x)
+        self._chol_xtx_inv = np.linalg.cholesky(self._xtx_inv)
+        self.declaration = imputer.declaration
+        self.data_fingerprint = data_fingerprint(data)
+        self.model_specification: dict[str, Any] = {
+            "backend": "JointGaussianImputer",
+            "waves": list(waves),
+            "predictors": list(data.predictor_cols),
+            "mean_model": "wave-saturated multivariate regression",
+            "covariance": "unstructured",
+            "prior": "Jeffreys |Sigma|^-(J+1)/2",
+            "burn_in": imputer.burn_in,
+            "thin": imputer.thin,
+        }
+        self.diagnostics: GaussianChainDiagnostics | None = None  # per run
+
     def impute(
         self,
-        data: LongitudinalData,
         m: int,
-        random_state: np.random.Generator,
+        random_state: int | np.random.Generator,
+        *,
+        delta: DeltaAdjustment | None = None,
     ) -> CompletedDatasetCollection:
         if m < 2:
             raise ValueError("m must be >= 2 for multiple imputation")
-        rng = random_state
-        y, x, waves = self._wide_arrays(data)
+        imp = self._imputer
+        delta = delta if delta is not None else imp.delta
+        rng, rng_record = normalize_random_state(random_state)
+        data, y, x = self._data, self._y, self._x
         mask = np.isnan(y)
 
-        xtx_inv = np.linalg.inv(x.T @ x)
-        chol_xtx_inv = np.linalg.cholesky(xtx_inv)
-
-        current = self._initial_fill(y, x)
+        current = imp._initial_fill(y, x)
+        trace: list[float] = []
         completed_frames = []
+        kept_sweeps: list[int] = []
         kept = 0
-        sweeps_until_keep = self.burn_in
+        sweep = 0
+        sweeps_until_keep = imp.burn_in
         while kept < m:
             for _ in range(max(sweeps_until_keep, 1)):
-                b, sigma = self._draw_parameters(
-                    current, x, xtx_inv, chol_xtx_inv, rng
+                b, sigma = imp._draw_parameters(
+                    current, x, self._xtx_inv, self._chol_xtx_inv, rng
                 )
                 mu = x @ b
-                current = self._impute_step(y, mask, mu, sigma, rng)
-            sweeps_until_keep = self.thin
+                current = imp._impute_step(y, mask, mu, sigma, rng)
+                trace.append(float(np.linalg.slogdet(sigma)[1]))
+                sweep += 1
+            sweeps_until_keep = imp.thin
+            kept_sweeps.append(sweep - 1)
 
             draw = current[mask]
-            if self.delta is not None:
-                draw = draw + self.delta.delta
+            if delta is not None:
+                draw = draw + delta.delta
             # imputed values align with LongitudinalData's (id, time) order:
-            # y is participant-sorted rows x design-wave columns, and mask
-            # flattens row-major exactly like the sorted long frame
+            # y is participant-sorted rows x declared-order wave columns, and
+            # mask flattens row-major exactly like the stored long frame
             completed_frames.append(data.completed_with(draw))
             kept += 1
+
+        post = np.asarray(trace[imp.burn_in :])
+        rho = _lag1_autocorrelation(post)
+        ess = (
+            float(len(post)) * (1.0 - rho) / (1.0 + rho)
+            if np.isfinite(rho) and rho > -1.0
+            else float("nan")
+        )
+        kept_trace = np.asarray(trace)[kept_sweeps]
+        diagnostics = GaussianChainDiagnostics(
+            n_sweeps=sweep,
+            burn_in=imp.burn_in,
+            thin=imp.thin,
+            m=m,
+            trace_lag1_autocorrelation=rho,
+            trace_ess=ess,
+            kept_lag1_autocorrelation=_lag1_autocorrelation(kept_trace),
+        )
+        self.diagnostics = diagnostics
 
         return CompletedDatasetCollection(
             data,
             completed_frames,
-            declaration=self.declaration,
+            declaration=imp._declaration(delta),
             metadata={
                 "imputer": "JointGaussianImputer",
-                "burn_in": self.burn_in,
-                "thin": self.thin,
-                "waves": waves,
-                "delta": None if self.delta is None else self.delta.delta,
+                "model_specification": dict(self.model_specification),
+                "data_fingerprint": self.data_fingerprint,
+                "random_state": rng_record,
+                "delta": None if delta is None else delta.delta,
+                "diagnostics": diagnostics,
             },
         )

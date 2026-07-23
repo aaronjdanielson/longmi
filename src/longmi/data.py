@@ -73,9 +73,10 @@ class LongitudinalData:
         When ``times`` is declared, enforce the complete participant-by-wave
         row grid described above. Opting out is explicit.
 
-    The stored frame is sorted by ``(id, time)`` with a fresh integer index,
-    making row order — and hence imputation-value alignment and analysis term
-    ordering — deterministic.
+    The stored frame is sorted by ``(id, time)`` with a fresh integer index
+    — using the *declared* design order of ``times`` when given, natural
+    sort otherwise — making row order (and hence imputation-value alignment
+    and analysis term ordering) deterministic.
     """
 
     def __init__(
@@ -156,6 +157,12 @@ class LongitudinalData:
                     f"predictor column {col!r} contains missing values; "
                     "longmi 0.1 requires fully observed predictors"
                 )
+            if pd.api.types.is_numeric_dtype(data[col]) and not np.all(
+                np.isfinite(data[col].to_numpy(dtype=float))
+            ):
+                raise ValueError(
+                    f"predictor column {col!r} contains non-finite values"
+                )
 
         outcome = pd.to_numeric(data[outcome_col], errors="raise")
         data[outcome_col] = outcome.astype(float)
@@ -165,9 +172,19 @@ class LongitudinalData:
                 data.loc[observed, outcome_col], outcome_type, "observed data"
             )
 
-        data = data.sort_values([id_col, time_col], kind="mergesort").reset_index(
-            drop=True
-        )
+        # declared design order takes precedence over natural sorting
+        if times is not None:
+            order = {t: k for k, t in enumerate(times)}
+            data = (
+                data.assign(_longmi_time_order=data[time_col].map(order))
+                .sort_values([id_col, "_longmi_time_order"], kind="mergesort")
+                .drop(columns="_longmi_time_order")
+                .reset_index(drop=True)
+            )
+        else:
+            data = data.sort_values(
+                [id_col, time_col], kind="mergesort"
+            ).reset_index(drop=True)
 
         self._frame = data
         self.id_col = id_col

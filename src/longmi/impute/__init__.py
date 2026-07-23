@@ -1,5 +1,12 @@
-from .base import BaseImputer
-from .gaussian import JointGaussianImputer
-from .negbin import NegativeBinomialImputer
+from .base import BaseFit, BaseImputer
+from .gaussian import JointGaussianFit, JointGaussianImputer
+from .negbin import NegativeBinomialFit, NegativeBinomialImputer
 
-__all__ = ["BaseImputer", "JointGaussianImputer", "NegativeBinomialImputer"]
+__all__ = [
+    "BaseFit",
+    "BaseImputer",
+    "JointGaussianFit",
+    "JointGaussianImputer",
+    "NegativeBinomialFit",
+    "NegativeBinomialImputer",
+]

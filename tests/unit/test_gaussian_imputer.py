@@ -149,9 +149,23 @@ class TestGuards:
         with pytest.raises(ValueError, match="grid is incomplete"):
             make_data(frame)
 
-    def test_incomplete_row_grid_rejected_by_imputer_without_declared_times(self):
-        from longmi import LongitudinalData
+    def test_undeclared_times_require_explicit_opt_in(self):
+        frame, _ = simulate(n=60)
+        data = LongitudinalData(  # no times declared
+            frame,
+            id_col="pid",
+            time_col="wave",
+            outcome_col="y",
+            predictor_cols=("treat",),
+        )
+        with pytest.raises(ValueError, match="declare the design grid"):
+            JointGaussianImputer().impute(data, 2, np.random.default_rng(0))
+        # explicit opt-in works
+        JointGaussianImputer(
+            burn_in=5, thin=2, allow_undeclared_times=True
+        ).impute(data, 2, np.random.default_rng(0))
 
+    def test_incomplete_row_grid_rejected_by_imputer_without_declared_times(self):
         frame, _ = simulate(n=60)
         frame = frame.drop(index=frame.index[1])
         data = LongitudinalData(  # no times declared: constructor cannot know
@@ -161,8 +175,9 @@ class TestGuards:
             outcome_col="y",
             predictor_cols=("treat",),
         )
+        imputer = JointGaussianImputer(allow_undeclared_times=True)
         with pytest.raises(ValueError, match="every design wave"):
-            JointGaussianImputer().impute(data, 2, np.random.default_rng(0))
+            imputer.impute(data, 2, np.random.default_rng(0))
 
     def test_time_varying_predictor_rejected(self):
         frame, _ = simulate(n=60)

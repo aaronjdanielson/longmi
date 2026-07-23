@@ -25,27 +25,56 @@ Time-varying predictors are supported (the design is row-level).
 
 ## Fitting and draws
 
-1. **ML fit.** The marginal likelihood integrates $b_i$ by Gauss–Hermite
-   quadrature (1-D, `n_quad` nodes); $\theta = (\beta, \log\kappa,
-   \log\tau)$ maximized by BFGS; observed-information covariance from a
-   central-difference Hessian.
-2. **Parameter draw (A6, declared approximation).** Per imputation,
+The backend separates fitting from generation:
+`NegativeBinomialImputer.fit(data)` returns a `NegativeBinomialFit`
+(diagnostics, declaration, model specification, data fingerprint), and
+`fit.impute(m, random_state, delta=...)` generates completed datasets —
+so MAR and delta scenarios reuse one fitted model.
+
+1. **ML fit with verified convergence.** The marginal likelihood
+   integrates $b_i$ by Gauss–Hermite quadrature (1-D, `n_quad` nodes);
+   $\theta = (\beta, \log\kappa, \log\tau)$ maximized by BFGS. The fit is
+   **refused** unless the optimizer reports success or the gradient
+   inf-norm is small ($< 10^{-3} \max(1, |\ell|)$) — a failed optimizer
+   never quietly generates imputations. Outcome, message, iterations,
+   objective, and gradient norm are retained in
+   `NegativeBinomialFitDiagnostics`.
+2. **Tolerance-aware curvature validation.** The observed-information
+   covariance $\widehat H^{-1}$ is validated by eigendecomposition: with
+   $\varepsilon = 10^{-8}$, eigenvalues below $-\varepsilon\lambda_{\max}$
+   raise (materially indefinite — possible nonidentification or a failed
+   optimum); tiny negatives above that threshold are repaired to the
+   tolerance and the repair is recorded (`covariance_repaired`,
+   `covariance_min_eigenvalue`).
+3. **Parameter draw (A6, declared approximation).** Per imputation,
    $\theta^{(m)} \sim N(\widehat\theta, \widehat H^{-1})$ — the
    large-sample normal approximation to the posterior, on a scale where
    $\kappa, \tau$ stay positive. This is an *approximation* to
    Proposition 2's exact posterior draw (Rubin 1987 sec. 4.3), and the
    backend's `ValidityDeclaration` says so.
-3. **Random-intercept draw (exact given $\theta^{(m)}$).**
-   $b_i \sim p(b_i \mid y_i^{\mathrm{obs}}, \theta^{(m)})$ by numerical
-   inverse-CDF on a fine grid ($\pm 8\tau$, 401 points); participants with
-   no observed outcomes draw from the $N(0, \tau^2)$ prior.
-4. **Outcome draw.** Gamma–Poisson:
+4. **Random-intercept draw (controlled numerical approximation).**
+   $b_i$ is sampled from a **numerically normalized grid approximation**
+   to $p(b_i \mid y_i^{\mathrm{obs}}, \theta^{(m)})$ by inverse-CDF: the
+   grid starts at $\pm 8\tau$ (≈25 points per prior sd) and **expands
+   adaptively** until the probability mass in the outermost cells falls
+   below $10^{-8}$; if the mass cannot be contained the run raises. The
+   realized maximum boundary mass and expansion count are reported in the
+   run metadata. Participants with no observed outcomes draw from the
+   $N(0, \tau^2)$ prior.
+5. **Outcome draw.** Gamma–Poisson:
    $\Lambda \sim \mathrm{Gamma}(\kappa, \text{rate} = \kappa/\mu)$,
    $Y \sim \mathrm{Poisson}(\Lambda)$ — nonnegative integers by
    construction, re-verified by `completed_with`.
-5. **Delta adjustment** is supported on the linear-predictor scale only
+6. **Delta adjustment** is supported on the linear-predictor scale only
    ($\mu$ multiplied by $e^\delta$ before the draw); an outcome-scale
    shift of a count is refused as a non-model-based transformation.
+
+Wave order follows the declared design order (`times=`), which the backend
+requires unless constructed with `allow_undeclared_times=True` — absent
+rows cannot be imputed. Run metadata also records the seed / bit
+generator / package version and the ranges of sampled $\kappa$ and
+$\tau$; quadrature sensitivity is checked by refitting with a different
+`n_quad` (recorded in the diagnostics).
 
 ## Validation
 

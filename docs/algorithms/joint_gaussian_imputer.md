@@ -61,10 +61,24 @@ of standard normals.
 5. Each kept matrix is passed to `LongitudinalData.completed_with`, which
    re-validates preservation of observed values and complete filling.
 
-Imputations come from a single chain separated by `thin` sweeps; defaults
-(`burn_in=500`, `thin=100`) are conservative for the small fixed-wave
-problems this backend targets. All randomness flows through the caller's
-`numpy.random.Generator`.
+The backend separates fitting from generation:
+`JointGaussianImputer.fit(data)` returns a `JointGaussianFit` (validated
+design, declaration, model specification, data fingerprint), and
+`fit.impute(m, random_state, delta=...)` runs a fresh chain — scenario
+runs with equal seeds share identical underlying draws, so a delta
+scenario differs from MAR only by the deterministic shift.
+
+Imputations come from a single chain separated by `thin` sweeps after
+`burn_in`. Every run reports `GaussianChainDiagnostics` — per-sweep lag-1
+autocorrelation and a crude single-chain ESS of the `log det(Sigma)`
+trace, plus the autocorrelation at kept-imputation spacing — so the
+adequacy of `burn_in`/`thin` is inspected from the run, not asserted from
+the defaults (multi-chain R-hat/ESS arrive with the simulation suite).
+All randomness flows through an integer seed or the caller's
+`numpy.random.Generator`; the seed, bit generator, and package version
+are recorded in the run metadata. Wave order follows the declared design
+order (`times=`), which the backend requires unless constructed with
+`allow_undeclared_times=True`.
 
 ## Requirements and refusals
 

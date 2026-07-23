@@ -62,10 +62,26 @@ Two imputation backends are implemented:
   ([src/longmi/impute/negbin.py](src/longmi/impute/negbin.py),
   [docs/algorithms/negative_binomial_glmm.md](docs/algorithms/negative_binomial_glmm.md)).
 
+Backends separate fitting from generation:
+
+```python
+fit = imputer.fit(data)                       # validate, estimate, diagnose
+mar = fit.impute(m=100, random_state=1)       # MAR
+mnar = fit.impute(m=100, random_state=1,      # MNAR scenario, shared
+                  delta=DeltaAdjustment(...)) # randomness with MAR run
+```
+
+Each fit exposes `diagnostics` (optimizer/curvature checks for the NB
+backend; single-chain autocorrelation/ESS for the Gaussian backend),
+`declaration`, `model_specification`, and `data_fingerprint`; run metadata
+records the seed, bit generator, and package version. A failed optimizer
+or materially indefinite curvature refuses to impute rather than warn.
+
 Analyses plug in through `AnalysisModel.fit`; wrap plain functions with
 `CallableAnalysis`. Next milestones: statsmodels GEE/GLM adapters, the MI
 arm of the epil example, then the simulation and cross-language
-statistical validation suite.
+statistical validation suite — the backends are not claimed statistically
+validated until that bias/coverage evidence exists.
 
 ## Examples and validation data
 

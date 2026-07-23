@@ -125,7 +125,8 @@ class TestInvariants:
         decl = collection.declaration
         assert decl.supported_outcome_types == ("count",)
         assert decl.parameter_uncertainty_propagated is True
-        assert "wave" in collection.metadata["design_terms"][1]
+        spec = collection.metadata["model_specification"]
+        assert "wave" in spec["design_terms"][1]
 
 
 class TestGuards:
