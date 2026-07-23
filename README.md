@@ -1,144 +1,139 @@
 # longmi
 
-Multiple imputation for one incomplete longitudinal response, with the validity
-conditions stated in the software rather than buried in a paper.
+longmi creates multiple plausible versions of missing repeated outcomes,
+fits the same analysis to each version, and combines the estimates and
+uncertainty using Rubin's rules.
 
-`longmi` implements established missing-data theory — Rubin (1976, 1987),
-Barnard–Rubin (1999), Meng (1994), Wang–Robins (1998) — it does not introduce a
-new proof of multiple imputation. Its contribution is:
+It is designed for one incomplete longitudinal outcome and makes the
+assumptions behind every result explicit — as part of the result object,
+not only in a paper.
 
-- an independent, tested Python implementation;
-- explicit declaration of the assumptions under which each method is valid;
-- safeguards against incompatible imputation and analysis specifications;
-- longitudinal count-outcome support;
-- Python–R numerical validation;
-- simulation evidence for bias and coverage (planned);
-- robust alternatives when ordinary Rubin pooling is questionable (planned).
-
-## Scope of 0.1
-
-One incomplete longitudinal response, with:
-
-- independent participants or clusters;
-- known observation times;
-- fully observed predictors;
-- MCAR or MAR missingness (delta-adjusted MNAR sensitivity planned);
-- posterior-predictive multiple imputation;
-- continuous and count outcomes;
-- arbitrary complete-data analyses through an adapter;
-- Rubin pooling with Barnard–Rubin degrees of freedom.
-
-Out of scope for 0.1: imputation of incomplete covariates or exposures,
-fully conditional specification, wide-format methods.
-
-## Current status
-
-The deterministic core is implemented and validated:
-
-- `LongitudinalData` — strict validation of long-format incomplete data
-  ([src/longmi/data.py](src/longmi/data.py));
-- `CompletedDatasetCollection` — completed datasets with observed-value
-  preservation enforced;
-- `AnalysisEstimate` / `RubinPooledResult` — typed containers
-  ([src/longmi/results.py](src/longmi/results.py));
-- `pool_rubin()` — scalar and multivariate Rubin rules, Barnard–Rubin
-  small-sample degrees of freedom, fraction of missing information
-  ([src/longmi/pooling/rubin.py](src/longmi/pooling/rubin.py));
-- exact numerical parity with R `mice::pool.scalar`
-  ([validation/r/rubin_reference.R](validation/r/rubin_reference.R),
-  [tests/cross_language/](tests/cross_language/)).
-
-Two imputation backends are implemented:
-
-- `JointGaussianImputer` — posterior-predictive joint Gaussian imputation
-  for fixed-wave data via exact conjugate data augmentation (Schafer 1997),
-  wave-saturated mean model, unstructured covariance, delta-adjustment
-  support ([src/longmi/impute/gaussian.py](src/longmi/impute/gaussian.py),
-  [docs/algorithms/joint_gaussian_imputer.md](docs/algorithms/joint_gaussian_imputer.md));
-- `NegativeBinomialImputer` — NB random-intercept imputation for
-  longitudinal counts: Gauss–Hermite ML, declared large-sample posterior
-  approximation for parameter draws, exact conditional random-intercept
-  draws, gamma–Poisson outcome draws, linear-predictor delta adjustment
-  ([src/longmi/impute/negbin.py](src/longmi/impute/negbin.py),
-  [docs/algorithms/negative_binomial_glmm.md](docs/algorithms/negative_binomial_glmm.md)).
-
-Backends separate fitting from generation:
-
-```python
-fit = imputer.fit(data)                       # validate, estimate, diagnose
-mar = fit.impute(m=100, random_state=1)       # MAR
-mnar = fit.impute(m=100, random_state=1,      # MNAR scenario, shared
-                  delta=DeltaAdjustment(...)) # randomness with MAR run
+```text
+Incomplete longitudinal data
+            ↓
+Fit an imputation model
+            ↓
+Generate M completed datasets
+            ↓
+Fit the same analysis M times
+            ↓
+Pool estimates and uncertainty
+            ↓
+Report the result and its validity conditions
 ```
 
-Each fit exposes `diagnostics` (optimizer/curvature checks for the NB
-backend; single-chain autocorrelation/ESS for the Gaussian backend),
-`declaration`, `model_specification`, and `data_fingerprint`; run metadata
-records the seed, bit generator, and package version. A failed optimizer
-or materially indefinite curvature refuses to impute rather than warn.
+## Installation
 
-Analyses plug in through `AnalysisModel.fit`: `StatsmodelsGEE` adapts a
-marginal GEE (formula, cluster column, family, fresh working-correlation
-instance per completed dataset, robust sandwich covariance), and
-`CallableAnalysis` wraps plain functions. The adapter is verified to be a
-transparent wrapper — it reproduces a direct statsmodels fit exactly,
-including on the motivating registry analysis
-([validation/external/orr_gee_replication.py](validation/external/orr_gee_replication.py),
-private data located by env var, never redistributed).
-
-Next milestones: `StatsmodelsGLM`, the MI arm of the epil example, then
-the simulation and cross-language statistical validation suite — the
-backends are not claimed statistically validated until that bias/coverage
-evidence exists.
-
-## Examples and validation data
-
-- [examples/epil_count/](examples/epil_count/) — the primary worked example
-  (`MASS::epil` seizure counts, loaded from upstream in both languages —
-  never redistributed — with shared missingness masks; complete-data and
-  available-case GEE currently agree across Python/statsmodels and
-  R/geepack within 2e-3);
-- [examples/cats_tutorial_parity/](examples/cats_tutorial_parity/) —
-  pinned external checkout of the published tutorial's R code and simulated
-  CATS data as a methodological oracle;
-- [tests/fixtures/](tests/fixtures/) — package-owned synthetic data for
-  fast deterministic tests.
-
-## Mathematical documentation
-
-- [docs/theory/mathematical_foundations.md](docs/theory/mathematical_foundations.md)
-  — foundations and validity conditions, as four cited propositions;
-- [docs/theory/assumptions.md](docs/theory/assumptions.md) — assumptions A1–A8;
-- [docs/theory/gee_after_imputation.md](docs/theory/gee_after_imputation.md)
-  — congeniality and the estimating-equation qualification;
-- [docs/algorithms/rubin_pooling.md](docs/algorithms/rubin_pooling.md) — the
-  pooling algorithm as implemented;
-- [docs/algorithms/posterior_predictive_mi.md](docs/algorithms/posterior_predictive_mi.md)
-  — the imputation algorithm contract.
-
-## Design principle
-
-Every result should be able to state the conditions under which it is valid:
-
-```python
-result.validity_report()
+```bash
+pip install -e ".[analysis]"     # from a checkout; not yet on PyPI
 ```
 
-renders the missingness assumption, whether parameter and outcome uncertainty
-were propagated, whether observed outcomes were preserved, the congeniality
-status, and the pooling method — as part of the result object, not only prose.
+## Quickstart
+
+```python
+from longmi import LongitudinalData, pool_rubin
+from longmi.analysis import StatsmodelsGEE
+from longmi.impute import NegativeBinomialImputer
+
+data = LongitudinalData(
+    frame,                        # long format, NaN where the outcome is missing
+    id_col="subject",
+    time_col="period",
+    outcome_col="seizures",
+    predictor_cols=("treatment", "baseline_seizures", "age"),
+    outcome_type="count",
+    times=(1, 2, 3, 4),           # declared design grid
+)
+
+# treatment-by-wave terms keep the analysis's interaction represented
+# in the imputation model (assumption A8)
+imputer = NegativeBinomialImputer(time_interactions=("treatment",))
+
+fit = imputer.fit(data)           # validate, estimate, diagnose once
+completed = fit.impute(m=50, random_state=20260723)
+
+analysis = StatsmodelsGEE(
+    "seizures ~ treatment * period + baseline_seizures + age",
+    groups="subject",
+    family="poisson",
+    cov_struct="exchangeable",
+)
+
+result = pool_rubin(completed.analyze(analysis), validity=completed.declaration)
+print(result.summary())
+print(result.validity_report())
+```
+
+The same fitted model reruns under a missing-not-at-random scenario:
+
+```python
+from longmi import DeltaAdjustment
+import numpy as np
+
+shifted = fit.impute(m=50, random_state=20260723,
+                     delta=DeltaAdjustment(np.log(0.8)))  # means x 0.8
+```
+
+## What is implemented
+
+- **Data contract** — `LongitudinalData` validates the participant-wave
+  grid, preserves observed outcomes bit-for-bit through completion, and
+  enforces count support ([src/longmi/data.py](src/longmi/data.py)).
+- **Imputers** — `JointGaussianImputer` (continuous outcomes; exact
+  conjugate data augmentation, wave-saturated mean, unstructured
+  covariance) and `NegativeBinomialImputer` (longitudinal counts; NB
+  random intercept, Gauss–Hermite ML with verified convergence,
+  large-sample posterior-approximation parameter draws, adaptive-grid
+  random-intercept draws, gamma–Poisson outcome draws). Both support
+  delta-adjusted MNAR sensitivity analysis and report numerical
+  diagnostics; a failed fit refuses to impute.
+- **Analyses** — `StatsmodelsGEE` (marginal GEE, robust sandwich,
+  verified to reproduce direct statsmodels fits exactly),
+  `StatsmodelsGLM`, and `CallableAnalysis` for custom estimators.
+- **Pooling** — `pool_rubin`, multivariate, bit-compatible with
+  `mice::pool.scalar` (verified at 1e-12 against R), Barnard–Rubin
+  degrees of freedom, fraction of missing information, and
+  `validity_report()` distinguishing verified properties from declared
+  assumptions.
+
+## Validation status
+
+Deterministic components are cross-validated against R (`mice`);
+imputation backends have unit, invariant, and numerical-diagnostic tests
+plus a seeded simulation suite for bias and confidence-interval coverage
+(`pytest -m slow tests/simulation`). See
+[docs/project-status.md](docs/project-status.md) for the canonical
+per-feature maturity table — the backends are not claimed statistically
+validated beyond what that table states.
+
+## Documentation
+
+- [docs/index.md](docs/index.md) — documentation home (build with
+  `mkdocs serve` after `pip install -e ".[docs]"`);
+- [Why impute the response?](docs/explanation/why_impute_the_response.md)
+  and [MCAR, MAR, MNAR](docs/explanation/mcar_mar_mnar.md) — concepts;
+- [Choosing an imputer](docs/how_to/choose_an_imputer.md),
+  [interpreting diagnostics](docs/how_to/interpret_diagnostics.md),
+  [reporting an analysis](docs/how_to/report_an_analysis.md) — task guides;
+- [Mathematical foundations and validity conditions](docs/theory/mathematical_foundations.md),
+  [assumptions A1–A8](docs/theory/assumptions.md),
+  [GEE after imputation](docs/theory/gee_after_imputation.md) — theory;
+- [algorithm specifications](docs/algorithms/) — what the software
+  actually computes, approximations included;
+- [worked examples](docs/examples/) — the epil count example and the
+  external validation oracles.
 
 ## Development
 
 ```bash
 pip install -e ".[dev]"
-pytest
+pytest                       # fast suite
+pytest -m slow tests/simulation -q   # simulation studies
+Rscript validation/r/rubin_reference.R   # regenerate R pooling reference
 ```
 
-Cross-language reference values are regenerated with:
-
-```bash
-Rscript validation/r/rubin_reference.R
-```
-
-See [REFERENCES.md](REFERENCES.md) for the citation list.
+longmi implements established missing-data theory (Rubin 1976, 1987;
+Barnard–Rubin 1999; Meng 1994; Wang–Robins 1998); it does not introduce a
+new proof of multiple imputation. See [REFERENCES.md](REFERENCES.md) for
+sources and [CITATION.cff](CITATION.cff) to cite the software. MIT
+license.

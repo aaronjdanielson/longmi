@@ -1,7 +1,22 @@
 # Negative-binomial GLMM imputer — algorithm as implemented
 
+## At a glance
+
+| Item | Negative-binomial imputer |
+| --- | --- |
+| Status | Implemented; see [project status](../project-status.md) for validation maturity |
+| Outcome | Nonnegative longitudinal count |
+| Missingness | MAR; delta-adjusted MNAR sensitivity (link scale) |
+| Dependence | Participant random intercept |
+| Likelihood integration | Gauss–Hermite quadrature (numerical) |
+| Parameter draw | Large-sample normal approximation (declared) |
+| Random-effect draw | Adaptive numerical grid approximation (controlled) |
+| Outcome draw | Gamma–Poisson, conditional on sampled quantities |
+| Main assumption | Correct conditional count model incl. the analysis's interactions (A5, A8) |
+| Do not use when | Structural zero inflation; random slopes needed |
+
 Implementation:
-[src/longmi/impute/negbin.py](../../src/longmi/impute/negbin.py).
+[src/longmi/impute/negbin.py](https://github.com/aaronjdanielson/longmi/blob/main/src/longmi/impute/negbin.py).
 Theory: Proposition 2 of
 [mathematical_foundations.md](../theory/mathematical_foundations.md).
 
@@ -79,7 +94,7 @@ $\tau$; quadrature sensitivity is checked by refitting with a different
 ## Validation
 
 Unit tests
-([tests/unit/test_negbin_imputer.py](../../tests/unit/test_negbin_imputer.py)):
+([tests/unit/test_negbin_imputer.py](https://github.com/aaronjdanielson/longmi/blob/main/tests/unit/test_negbin_imputer.py)):
 count support and preservation invariants, seeded reproducibility,
 between-imputation variability, guards, declaration carriage; fixed-seed
 statistical checks — pooled recovery of the wave-3 mean under

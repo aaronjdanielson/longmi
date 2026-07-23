@@ -1,4 +1,4 @@
-"""Python side of the epil first validation task.
+"""Python side of the epil worked example.
 
 Fits the substantive Poisson GEE
 
@@ -7,24 +7,33 @@ Fits the substantive Poisson GEE
 
 with exchangeable working correlation clustered by subject, on
 
-- the complete upstream data (the benchmark), and
+- the complete upstream data (the benchmark),
 - the available cases under the shared MAR mask
-  (validation/masks/epil_mar_seed_20260723.csv),
+  (validation/masks/epil_mar_seed_20260723.csv), and
+- M = 20 completed datasets from longmi's negative-binomial GLMM imputer
+  (categorical wave, treat-by-wave interactions so the analysis's
+  treat:period term is nested — A8), pooled with Rubin's rules,
 
-and writes machine-readable results to results_python.csv with
+then runs a delta-adjusted MNAR sensitivity analysis (the same fitted
+imputation model, means of the imputed counts shifted by exp(delta)).
+
+Because the source data are complete, the complete-data GEE is the truth
+the missing-data methods are trying to recover: available-case shows the
+cost of ignoring the dropout mechanism; MI should land nearer the
+benchmark with honestly wider uncertainty.
+
+Writes machine-readable results to results_python.csv with
 language-neutral term names, for comparison against the R reference
-(run_reference.R -> results_r.csv) by compare_results.py.
-
-No imputation happens here yet: this task establishes that both languages
-load identical data, share one missingness mask, and agree on the
-complete-data and available-case analyses — the end-to-end baseline the MI
-engine will be validated against.
+(run_reference.R -> results_r.csv, complete/available-case analyses) by
+compare_results.py.
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
@@ -32,9 +41,19 @@ import statsmodels.formula.api as smf
 from missingness import apply_mask, mask_path
 from prepare_data import load_epil, normalized_hash
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+
+from longmi import LongitudinalData  # noqa: E402
+from longmi.analysis import StatsmodelsGEE  # noqa: E402
+from longmi.impute import NegativeBinomialImputer  # noqa: E402
+from longmi.pooling import pool_rubin  # noqa: E402
+from longmi.scenarios import DeltaAdjustment  # noqa: E402
+
 HERE = Path(__file__).resolve().parent
 
 FORMULA = "y ~ treat * period + lbase1 + age"
+M_IMPUTATIONS = 20
+MI_SEED = 20260723
 
 # statsmodels term name -> language-neutral name (order fixed by the formula)
 TERMS = {
@@ -70,6 +89,54 @@ def fit_gee(frame: pd.DataFrame, analysis: str) -> pd.DataFrame:
     )
 
 
+def fit_mi(observed: pd.DataFrame, analysis: str, delta: float | None) -> pd.DataFrame:
+    """NB imputation -> GEE per completed dataset -> Rubin pooling."""
+    data = LongitudinalData(
+        observed,
+        id_col="subject",
+        time_col="period",
+        outcome_col="y",
+        predictor_cols=("treat", "lbase1", "age"),
+        outcome_type="count",
+        times=(1, 2, 3, 4),
+    )
+    imputer = NegativeBinomialImputer(time_interactions=("treat",))
+    fit = fit_mi.cache.get("fit")
+    if fit is None:
+        fit = imputer.fit(data)
+        fit_mi.cache["fit"] = fit
+        diag = fit.diagnostics
+        print(
+            f"NB imputation model: optimizer ok "
+            f"(grad {diag.gradient_norm:.2e}), "
+            f"min Hessian eigenvalue {min(diag.hessian_eigenvalues):.3g}"
+        )
+    scenario = None if delta is None else DeltaAdjustment(
+        delta=delta, label=f"means x {np.exp(delta):.2f}"
+    )
+    collection = fit.impute(M_IMPUTATIONS, random_state=MI_SEED, delta=scenario)
+    adapter = StatsmodelsGEE(
+        FORMULA, groups="subject", family="poisson", cov_struct="exchangeable"
+    )
+    pooled = pool_rubin(collection.analyze(adapter), validity=collection.declaration)
+    name_map = dict(zip(pooled.names, TERMS.values()))
+    if set(name_map) != set(TERMS):
+        raise RuntimeError(f"unexpected MI term ordering: {pooled.names}")
+    return pd.DataFrame(
+        {
+            "analysis": analysis,
+            "term": [TERMS[n] for n in pooled.names],
+            "estimate": pooled.qbar,
+            "robust_se": pooled.se,
+            "n_rows": len(observed),
+            "n_subjects": observed["subject"].nunique(),
+        }
+    )
+
+
+fit_mi.cache = {}
+
+
 def main() -> None:
     epil = load_epil()
     print(f"data: {len(epil)} rows, sha256 {normalized_hash(epil)}")
@@ -83,13 +150,27 @@ def main() -> None:
     )
 
     results = pd.concat(
-        [fit_gee(epil, "complete"), fit_gee(available, "available_case")],
+        [
+            fit_gee(epil, "complete"),
+            fit_gee(available, "available_case"),
+            fit_mi(observed, "mi_rubin", delta=None),
+            # MNAR sensitivity: imputed means shifted down/up 20%
+            fit_mi(observed, "mi_delta_low", delta=float(np.log(0.8))),
+            fit_mi(observed, "mi_delta_high", delta=float(np.log(1.25))),
+        ],
         ignore_index=True,
     )
     out = HERE / "results_python.csv"
     results.to_csv(out, index=False)
     print(f"wrote {out}")
     print(results.to_string(index=False))
+
+    # the headline contrast: treat:period across analyses
+    headline = results[results["term"] == "treat_period"][
+        ["analysis", "estimate", "robust_se"]
+    ]
+    print("\ntreat:period (truth = complete-data row):")
+    print(headline.to_string(index=False))
 
 
 if __name__ == "__main__":

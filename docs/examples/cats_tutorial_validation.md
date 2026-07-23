@@ -18,12 +18,14 @@ Role in longmi's validation strategy:
 The tutorial repository is treated as an **external pinned checkout**
 (no explicit upstream license → nothing is copied or redistributed):
 located via `LONGMI_TUTORIAL_REPO`, pinned by commit in
-[validation/external_repositories.toml](../../validation/external_repositories.toml),
+[validation/external_repositories.toml](https://github.com/aaronjdanielson/longmi/blob/main/validation/external_repositories.toml),
 verified by
-[examples/cats_tutorial_parity/external_repo.py](../../examples/cats_tutorial_parity/external_repo.py).
+[examples/cats_tutorial_parity/external_repo.py](https://github.com/aaronjdanielson/longmi/blob/main/examples/cats_tutorial_parity/external_repo.py).
 
-Parity comparisons — authors' R implementation vs longmi on the same data,
-missingness, imputation specification, substantive model, and pooling —
-will be statistical (pooled estimates, standard errors, fractions of
-missing information, imputed margins), never draw-for-draw, and arrive with
-the first imputation backends.
+**Status:** the external checkout and validation contract (pinning,
+required-file checks) are implemented. Cross-language statistical parity
+for the imputation distributions and pooled analyses — authors' R
+implementation vs longmi on the same data, missingness, imputation
+specification, substantive model, and pooling — remains in progress.
+Comparisons will be statistical (pooled estimates, standard errors,
+fractions of missing information, imputed margins), never draw-for-draw.

@@ -6,6 +6,7 @@ build/
 .venv/
 .pytest_cache/
 .cache/
+site/
 .DS_Store
 .Rhistory
 .RData

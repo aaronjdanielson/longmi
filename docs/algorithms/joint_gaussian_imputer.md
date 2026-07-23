@@ -1,7 +1,21 @@
 # Joint Gaussian reference imputer — algorithm as implemented
 
+## At a glance
+
+| Item | Joint Gaussian imputer |
+| --- | --- |
+| Status | Implemented; see [project status](../project-status.md) for validation maturity |
+| Outcome | Continuous, fixed design waves |
+| Missingness | MAR; delta-adjusted MNAR sensitivity |
+| Dependence | Unstructured covariance across waves |
+| Mean model | Wave-saturated (every predictor × every wave) |
+| Parameter draw | Exact conjugate data augmentation (Jeffreys prior) |
+| Outcome draw | Conditional multivariate normal |
+| Main assumption | Approximately Gaussian outcome; participant-level predictors (A5, A8) |
+| Do not use when | Count/bounded/strongly non-Gaussian outcomes; time-varying predictors |
+
 Implementation:
-[src/longmi/impute/gaussian.py](../../src/longmi/impute/gaussian.py).
+[src/longmi/impute/gaussian.py](https://github.com/aaronjdanielson/longmi/blob/main/src/longmi/impute/gaussian.py).
 Theory: Proposition 2 of
 [mathematical_foundations.md](../theory/mathematical_foundations.md);
 sources: Schafer (1997, the NORM algorithm with regressors); Tanner & Wong
@@ -93,7 +107,7 @@ order (`times=`), which the backend requires unless constructed with
 ## Validation
 
 Unit tests
-([tests/unit/test_gaussian_imputer.py](../../tests/unit/test_gaussian_imputer.py)):
+([tests/unit/test_gaussian_imputer.py](https://github.com/aaronjdanielson/longmi/blob/main/tests/unit/test_gaussian_imputer.py)):
 mechanical invariants (preservation, reproducibility by seed,
 between-imputation variability, guards) and fixed-seed statistical checks —
 pooled recovery of a wave-specific treatment effect under sequential MAR

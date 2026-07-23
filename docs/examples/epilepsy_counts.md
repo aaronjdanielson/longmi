@@ -4,7 +4,7 @@ The primary longmi vignette, built on `MASS::epil` (Thall & Vail 1990): a
 real, public, overdispersed longitudinal count outcome whose complete
 values are known — so every missing-data method in the package can be
 checked against the truth it is trying to recover. Implementation lives in
-[examples/epil_count/](../../examples/epil_count/).
+[examples/epil_count/](https://github.com/aaronjdanielson/longmi/blob/main/examples/epil_count/).
 
 ## The narrative
 
@@ -20,20 +20,27 @@ checked against the truth it is trying to recover. Implementation lives in
    languages see the identical pattern. *(done)*
 4. **Show the cost of available-case GEE** relative to the complete-data
    benchmark. *(done — compare `results_python.csv` analyses)*
-5. **Impute** missing counts with a negative-binomial longitudinal model
-   (posterior-predictive, gamma–Poisson draws). *(awaits the NB imputer)*
-6. **Refit the GEE** on each completed dataset via the analysis adapter.
-7. **Pool with Rubin's rules** (`pool_rubin`, Barnard–Rubin df).
-8. **Compare** MI against complete-data, available-case, and IPW estimates.
-9. **Delta-adjusted MNAR sensitivity analysis**, plus the
-   `mnar_stress_test` mask demonstrating where MAR imputation fails.
-10. **Reproduce the workflow in R** and compare pooled results.
+5. **Impute** missing counts with the negative-binomial GLMM imputer
+   (categorical wave, treat-by-wave interactions, gamma–Poisson draws;
+   M = 20, seed 20260723). *(done)*
+6. **Refit the GEE** on each completed dataset via `StatsmodelsGEE`.
+   *(done)*
+7. **Pool with Rubin's rules** (`pool_rubin`, validity carried from the
+   imputer's declaration). *(done)*
+8. **Compare** MI against complete-data and available-case estimates
+   *(done — see `results_python.csv`)*; the IPW arm remains open.
+9. **Delta-adjusted MNAR sensitivity analysis** — imputed means scaled by
+   0.8 and 1.25 reusing the same fitted imputation model *(done)*; the
+   `mnar_stress_test` mask demonstration remains open.
+10. **Reproduce the workflow in R** and compare pooled results. *(open —
+    the R comparison currently covers the complete-data and
+    available-case analyses)*
 
 ## Why epil
 
 - Public and loadable from authoritative upstreams in both languages — no
   data redistribution (MASS is GPL; see the licensing notes in
-  [examples/epil_count/README.md](../../examples/epil_count/README.md),
+  [examples/epil_count/README.md](https://github.com/aaronjdanielson/longmi/blob/main/examples/epil_count/README.md),
   including the MASS 7.3-65 row-31 erratum).
 - Complete source data: induced missingness means the hidden values are
   known, which the motivating application (ORR medication counts) cannot

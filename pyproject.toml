@@ -25,9 +25,14 @@ classifiers = [
 [project.optional-dependencies]
 analysis = ["statsmodels>=0.14"]
 dev = ["pytest>=7.0", "statsmodels>=0.14"]
+docs = ["mkdocs>=1.5", "pymdown-extensions>=10.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/longmi"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not slow'"
+markers = [
+    "slow: simulation studies; run explicitly with `pytest -m slow tests/simulation`",
+]

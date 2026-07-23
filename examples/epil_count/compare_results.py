@@ -35,10 +35,21 @@ def main() -> int:
     py = load("results_python.csv")
     r = load("results_r.csv")
 
-    merged = py.merge(
-        r, on=["analysis", "term"], suffixes=("_py", "_r"), validate="one_to_one"
+    # analyses present only on the Python side (the MI arm and delta
+    # scenarios) are reported but not compared; the R MI reference arrives
+    # with the cross-language statistical validation suite
+    common = sorted(set(py["analysis"]) & set(r["analysis"]))
+    py_only = sorted(set(py["analysis"]) - set(r["analysis"]))
+    if py_only:
+        print(f"python-only analyses (not compared): {py_only}\n")
+    py_common = py[py["analysis"].isin(common)]
+    r_common = r[r["analysis"].isin(common)]
+
+    merged = py_common.merge(
+        r_common, on=["analysis", "term"], suffixes=("_py", "_r"),
+        validate="one_to_one",
     )
-    if len(merged) != len(py) or len(merged) != len(r):
+    if len(merged) != len(py_common) or len(merged) != len(r_common):
         sys.exit("term sets differ between Python and R results")
 
     failures = []

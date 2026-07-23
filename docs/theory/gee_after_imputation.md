@@ -58,7 +58,7 @@ recommended pooling method
 ```
 
 This is the `ValidityDeclaration` contract in
-[../../src/longmi/contracts.py](../../src/longmi/contracts.py), surfaced on
+[../../src/longmi/contracts.py](https://github.com/aaronjdanielson/longmi/blob/main/src/longmi/contracts.py), surfaced on
 pooled results via `validity_report()`.
 
 For the motivating count-outcome model, the imputer must contain at least

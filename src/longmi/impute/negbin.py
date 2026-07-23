@@ -65,14 +65,18 @@ _COV_EIG_RTOL = 1e-8  # repairable-vs-materially-indefinite threshold
 
 
 def _nb_loglik(y: np.ndarray, log_mu: np.ndarray, kappa: float) -> np.ndarray:
-    """Elementwise log NegBin(y | mean exp(log_mu), size kappa)."""
-    mu = np.exp(log_mu)
+    """Elementwise log NegBin(y | mean exp(log_mu), size kappa).
+
+    Written via logaddexp so extreme linear predictors explored by the
+    optimizer cannot overflow exp(log_mu).
+    """
+    log_kappa_plus_mu = np.logaddexp(np.log(kappa), log_mu)
     return (
         special.gammaln(y + kappa)
         - special.gammaln(kappa)
         - special.gammaln(y + 1.0)
-        + kappa * np.log(kappa / (kappa + mu))
-        + y * (log_mu - np.log(kappa + mu))
+        + kappa * (np.log(kappa) - log_kappa_plus_mu)
+        + y * (log_mu - log_kappa_plus_mu)
     )
 
 

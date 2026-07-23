@@ -3,8 +3,21 @@
 Every method in `longmi` is valid only under stated assumptions. This file is
 the canonical enumeration; imputers and pooled results reference these labels
 in their `ValidityDeclaration`. None of A2, A5, A8 is fully verifiable from
-observed data — the package distinguishes what it *enforces*, what it
+observed data. The package distinguishes what it *enforces*, what it
 *declares*, and what must be *argued substantively*.
+
+## At a glance
+
+| Assumption | Plain-language meaning | Software checks it? | Analyst must justify it? | Sensitivity / recourse |
+| --- | --- | --- | --- | --- |
+| A1 | Participants or clusters are independent | Partly (id column is the unit) | Yes | Cluster-level resampling |
+| A2 | Given the observed data, missingness does not depend on the missing outcomes | No — untestable | Yes | Delta adjustment |
+| A3 | Outcome and missingness parameters are distinct | No | Yes | Shared-parameter model needed if violated |
+| A4 | Every observed history has some chance of follow-up | Partly | Yes | Inspect follow-up probabilities |
+| A5 | The imputation distribution is adequate for the estimand | No | Yes | Predictive checks; simulation |
+| A6 | Parameter *and* outcome uncertainty are propagated | **Yes** (backend-verified) | No | Backend declaration |
+| A7 | The complete-data estimator and covariance are valid | Partly (adapter returns the robust covariance) | Yes | Alternative analysis |
+| A8 | Imputation and analysis models are compatible | Partly (nesting by construction where documented) | Yes | Bootstrap-then-impute (planned); richer imputation model |
 
 ## A1. Independent clusters
 

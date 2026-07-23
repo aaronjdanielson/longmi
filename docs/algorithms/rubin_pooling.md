@@ -1,6 +1,6 @@
 # Rubin pooling — algorithm as implemented
 
-Implementation: [src/longmi/pooling/rubin.py](../../src/longmi/pooling/rubin.py).
+Implementation: [src/longmi/pooling/rubin.py](https://github.com/aaronjdanielson/longmi/blob/main/src/longmi/pooling/rubin.py).
 Theory and citations: Proposition 3 of
 [mathematical_foundations.md](../theory/mathematical_foundations.md)
 (Rubin 1987; Barnard & Rubin 1999).
@@ -100,5 +100,5 @@ $T$ are identical across methods.
 The default method matches `mice::pool.scalar` exactly, verified at
 relative tolerance $10^{-12}$ — including a $\lambda < 10^{-4}$ clamp case
 and a zero-$B$ case
-([validation/r/rubin_reference.R](../../validation/r/rubin_reference.R),
-[tests/cross_language/](../../tests/cross_language/)).
+([validation/r/rubin_reference.R](https://github.com/aaronjdanielson/longmi/blob/main/validation/r/rubin_reference.R),
+[tests/cross_language/](https://github.com/aaronjdanielson/longmi/blob/main/tests/cross_language/)).

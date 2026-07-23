@@ -5,7 +5,23 @@ new proof of multiple imputation. This chapter states the framework, the
 assumptions (detailed in [assumptions.md](assumptions.md)), and four cited
 propositions. Each proposition records what is proved, under which
 assumptions, and where the original proof lives. Full citations are in
-[REFERENCES.md](../../REFERENCES.md).
+[REFERENCES.md](https://github.com/aaronjdanielson/longmi/blob/main/REFERENCES.md).
+
+## What these propositions establish
+
+1. Under MAR and parameter distinctness, likelihood-based outcome
+   inference may ignore the missingness model *(Proposition 1)*.
+2. Drawing parameters and then missing outcomes generates
+   posterior-predictive imputations *(Proposition 2)*.
+3. Repeated completed-data estimates can be pooled under
+   proper-imputation and compatibility conditions *(Proposition 3)*.
+4. GEE and other estimating-equation analyses need additional care,
+   because Rubin variance is not universally robust to uncongeniality
+   *(Proposition 4)*.
+
+Plain-language background is in
+[why impute the response?](../explanation/why_impute_the_response.md) and
+[MCAR, MAR, and MNAR](../explanation/mcar_mar_mnar.md).
 
 ## 1. Full and observed data
 

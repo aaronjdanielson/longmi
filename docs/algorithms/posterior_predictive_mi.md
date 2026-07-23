@@ -3,8 +3,8 @@
 Theory and citations: Proposition 2 of
 [mathematical_foundations.md](../theory/mathematical_foundations.md)
 (Rubin 1978, 1987; Tanner & Wong 1987; Schafer 1997). Interfaces:
-[src/longmi/impute/base.py](../../src/longmi/impute/base.py) and
-[src/longmi/contracts.py](../../src/longmi/contracts.py).
+[src/longmi/impute/base.py](https://github.com/aaronjdanielson/longmi/blob/main/src/longmi/impute/base.py) and
+[src/longmi/contracts.py](https://github.com/aaronjdanielson/longmi/blob/main/src/longmi/contracts.py).
 
 Two concrete backends implement this contract — the joint Gaussian
 reference imputer ([joint_gaussian_imputer.md](joint_gaussian_imputer.md))
@@ -26,7 +26,7 @@ $M$, for $m = 1, \dots, M$:
     p(Y^{\mathrm{mis}} \mid Y^{\mathrm{obs}}, X, \theta^{(m)})$,
    respecting the within-participant dependence structure (A8).
 3. **Optional delta adjustment.** If a
-   [`DeltaAdjustment`](../../src/longmi/scenarios.py) scenario is active,
+   [`DeltaAdjustment`](https://github.com/aaronjdanielson/longmi/blob/main/src/longmi/scenarios.py) scenario is active,
    shift the draw on the declared scale before completion; count outcomes
    remain nonnegative integers.
 4. **Completion.** Call `LongitudinalData.completed_with(...)`, which fills

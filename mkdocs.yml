@@ -1,0 +1,45 @@
+site_name: longmi
+site_description: Longitudinal multiple imputation for Python, with explicit validity conditions
+repo_url: https://github.com/aaronjdanielson/longmi
+
+theme:
+  name: readthedocs
+
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Quickstart: getting_started/quickstart.md
+      - Preparing data: getting_started/preparing_data.md
+      - Understanding the output: getting_started/understanding_the_output.md
+  - How-to:
+      - Choose an imputer: how_to/choose_an_imputer.md
+      - Run MNAR delta sensitivity: how_to/run_delta_sensitivity.md
+      - Interpret diagnostics: how_to/interpret_diagnostics.md
+      - Report an analysis: how_to/report_an_analysis.md
+  - Concepts:
+      - Why impute the response?: explanation/why_impute_the_response.md
+      - MCAR, MAR, and MNAR: explanation/mcar_mar_mnar.md
+      - Mathematical foundations: theory/mathematical_foundations.md
+      - Assumptions A1-A8: theory/assumptions.md
+      - GEE after imputation: theory/gee_after_imputation.md
+  - Algorithms:
+      - Posterior-predictive MI: algorithms/posterior_predictive_mi.md
+      - Joint Gaussian imputer: algorithms/joint_gaussian_imputer.md
+      - Negative-binomial GLMM: algorithms/negative_binomial_glmm.md
+      - Rubin pooling: algorithms/rubin_pooling.md
+  - Examples:
+      - Epilepsy counts: examples/epilepsy_counts.md
+      - CATS tutorial validation: examples/cats_tutorial_validation.md
+  - Project status: project-status.md
+
+plugins:
+  - search

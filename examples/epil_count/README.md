@@ -64,10 +64,25 @@ difference| 4.1e-4 across both analyses (different GEE implementations;
 deterministic quantities match exactly). `results_python.csv` /
 `results_r.csv` are regenerable outputs.
 
-## Planned continuation (with the imputation engine)
+## MI arm (implemented)
 
-Impute the MAR-masked counts with a negative-binomial longitudinal model,
-refit the GEE per completed dataset, pool with Rubin's rules, compare MI
-against the complete-data benchmark, available-case, and IPW estimates, and
-close with a delta-adjusted MNAR sensitivity analysis — the full narrative
-in [docs/examples/epilepsy_counts.md](../../docs/examples/epilepsy_counts.md).
+`run_python.py` also imputes the MAR-masked counts with longmi's
+negative-binomial GLMM imputer (categorical wave, treat-by-wave
+interactions so the analysis's `treat:period` is nested — A8; M = 20,
+seed 20260723), refits the GEE per completed dataset, and pools with
+Rubin's rules — plus two delta-adjusted MNAR scenarios reusing the same
+fitted imputation model (imputed means scaled by 0.8 and 1.25). Results
+land in `results_python.csv` as `mi_rubin`, `mi_delta_low`,
+`mi_delta_high`; the R-side comparison covers the `complete` and
+`available_case` analyses (an R MI reference arrives with the
+cross-language statistical suite). MI standard errors are wider than
+available-case — that is the point: the extra width is the missing
+information. Single-mask point estimates should not be read as bias
+evidence in either direction; the simulation suite
+([tests/simulation/](../../tests/simulation/)) is what establishes bias
+and coverage.
+
+## Remaining narrative steps
+
+IPW comparison arm and the R reproduction of the MI workflow — see
+[docs/examples/epilepsy_counts.md](../../docs/examples/epilepsy_counts.md).

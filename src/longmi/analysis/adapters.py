@@ -16,7 +16,7 @@ import pandas as pd
 from ..results import AnalysisEstimate
 from .base import BaseAnalysis
 
-__all__ = ["CallableAnalysis", "StatsmodelsGEE"]
+__all__ = ["CallableAnalysis", "StatsmodelsGEE", "StatsmodelsGLM"]
 
 
 class CallableAnalysis(BaseAnalysis):
@@ -51,6 +51,94 @@ class CallableAnalysis(BaseAnalysis):
 
 _GEE_FAMILIES = ("gaussian", "poisson", "binomial", "gamma")
 _GEE_COV_STRUCTS = ("independence", "exchangeable", "autoregressive")
+
+
+class StatsmodelsGLM(BaseAnalysis):
+    """GLM via ``statsmodels`` formulas, for analyses of independent rows
+    (e.g. a single-wave cross-section of each completed dataset).
+
+    Parameters
+    ----------
+    formula:
+        Patsy formula.
+    family:
+        One of ``"gaussian" | "poisson" | "binomial" | "gamma"``, or a
+        ``statsmodels`` family instance.
+    cov_type:
+        Covariance estimator (default ``"nonrobust"``, the model-based
+        covariance; pass e.g. ``"HC1"`` for heteroskedasticity-robust —
+        but for repeated measures use :class:`StatsmodelsGEE`, which
+        accounts for clustering).
+    subset:
+        Optional boolean-returning callable applied to the completed frame
+        before fitting (e.g. ``lambda f: f["wave"] == 3``).
+    use_dfcom:
+        Attach the residual degrees of freedom as ``dfcom`` so pooling
+        applies the Barnard-Rubin small-sample reference (default True).
+    """
+
+    def __init__(
+        self,
+        formula: str,
+        *,
+        family: Any = "gaussian",
+        cov_type: str = "nonrobust",
+        subset: Callable[[pd.DataFrame], "pd.Series"] | None = None,
+        use_dfcom: bool = True,
+        fit_kwargs: Mapping[str, Any] | None = None,
+    ) -> None:
+        self.formula = formula
+        self.family = family
+        self.cov_type = cov_type
+        self.subset = subset
+        self.use_dfcom = use_dfcom
+        self.fit_kwargs = dict(fit_kwargs or {})
+
+    def _statsmodels(self):
+        try:
+            import statsmodels.api as sm
+            import statsmodels.formula.api as smf
+        except ImportError as exc:  # pragma: no cover
+            raise ImportError(
+                "StatsmodelsGLM requires statsmodels; "
+                "install with `pip install longmi[analysis]`"
+            ) from exc
+        return sm, smf
+
+    def _family(self, sm):
+        if isinstance(self.family, str):
+            if self.family not in _GEE_FAMILIES:
+                raise ValueError(
+                    f"family must be one of {_GEE_FAMILIES} or a statsmodels "
+                    f"family instance, got {self.family!r}"
+                )
+            return {
+                "gaussian": sm.families.Gaussian,
+                "poisson": sm.families.Poisson,
+                "binomial": sm.families.Binomial,
+                "gamma": sm.families.Gamma,
+            }[self.family]()
+        return self.family
+
+    def fit(self, frame: pd.DataFrame) -> AnalysisEstimate:
+        sm, smf = self._statsmodels()
+        if self.subset is not None:
+            frame = frame.loc[self.subset(frame)]
+        model = smf.glm(self.formula, data=frame, family=self._family(sm))
+        result = model.fit(cov_type=self.cov_type, **self.fit_kwargs)
+        return AnalysisEstimate(
+            names=tuple(result.params.index),
+            estimates=result.params.to_numpy(),
+            covariance=result.cov_params().to_numpy(),
+            dfcom=float(result.df_resid) if self.use_dfcom else None,
+            metadata={
+                "adapter": "StatsmodelsGLM",
+                "formula": self.formula,
+                "family": type(self._family(sm)).__name__,
+                "cov_type": self.cov_type,
+                "n_obs": int(result.nobs),
+            },
+        )
 
 
 class StatsmodelsGEE(BaseAnalysis):
