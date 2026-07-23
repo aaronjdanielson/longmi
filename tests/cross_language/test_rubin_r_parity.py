@@ -26,6 +26,10 @@ QA = [1.5, 2.0, 2.5, 1.8, 2.2]
 UA = [0.36, 0.44, 0.40, 0.38, 0.42]
 QC = [0.10, 0.30, 0.20]
 UC = [0.09, 0.11, 0.10]
+QE = [0.5, 0.5005, 0.4995]  # lambda ~ 8e-6: exercises mice's 1e-4 clamp
+UE = [0.04, 0.04, 0.04]
+QF = [0.25, 0.25, 0.25, 0.25]  # zero between-imputation variance
+UF = [0.01, 0.012, 0.011, 0.009]
 QD = np.array(
     [
         [0.90, 0.42, -0.15],
@@ -92,11 +96,14 @@ def pooled():
         ("D", "beta0"): (vector_case(194.0), 0),
         ("D", "beta1"): (vector_case(194.0), 1),
         ("D", "beta2"): (vector_case(194.0), 2),
+        ("E", "beta"): (scalar_case(QE, UE, dfcom=48.0), 0),
+        ("F", "beta"): (scalar_case(QF, UF, dfcom=None), 0),
     }
 
 
 CASES = [("A", "beta"), ("B", "beta"), ("C", "beta"),
-         ("D", "beta0"), ("D", "beta1"), ("D", "beta2")]
+         ("D", "beta0"), ("D", "beta1"), ("D", "beta2"),
+         ("E", "beta"), ("F", "beta")]
 QUANTITIES = ["qbar", "ubar", "b", "t", "riv", "lambda", "fmi", "df"]
 
 

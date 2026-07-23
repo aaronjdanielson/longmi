@@ -76,6 +76,18 @@ for (j in seq_along(params)) {
   )
 }
 
+# Case E: lambda below mice's 1e-4 clamp (exercises the clamp path that
+# longmi's default df_method="barnard_rubin_mice" must reproduce)
+rows[[length(rows) + 1]] <- pool_case(
+  "E", "beta", c(0.5, 0.5005, 0.4995), c(0.04, 0.04, 0.04), n = 50, k = 2
+)
+
+# Case F: zero between-imputation variance, large-sample reference
+rows[[length(rows) + 1]] <- pool_case(
+  "F", "beta", c(0.25, 0.25, 0.25, 0.25), c(0.01, 0.012, 0.011, 0.009),
+  n = Inf, k = 1
+)
+
 reference <- do.call(rbind, rows)
 
 args <- commandArgs(trailingOnly = FALSE)

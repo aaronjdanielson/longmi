@@ -4,7 +4,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from longmi import CompletedDatasetCollection, LongitudinalData
+from longmi import (
+    AnalysisEstimate,
+    CallableAnalysis,
+    CompletedDatasetCollection,
+    LongitudinalData,
+)
 
 
 def make_frame():
@@ -85,6 +90,58 @@ class TestValidation:
     def test_undeclared_design_time_rejected(self):
         with pytest.raises(ValueError, match="design times"):
             make_data(times=(1, 2))
+
+    def test_incomplete_wave_grid_is_rejected(self):
+        frame = make_frame().drop(index=4)  # participant 2 loses its wave-2 row
+        with pytest.raises(ValueError, match="grid is incomplete"):
+            LongitudinalData(
+                frame,
+                id_col="pid",
+                time_col="wave",
+                outcome_col="y",
+                times=(1, 2, 3),
+            )
+
+    def test_incomplete_wave_grid_opt_out(self):
+        frame = make_frame().drop(index=4)
+        data = LongitudinalData(
+            frame,
+            id_col="pid",
+            time_col="wave",
+            outcome_col="y",
+            times=(1, 2, 3),
+            require_complete_grid=False,
+        )
+        assert data.n_rows == 8
+
+    def test_nonfinite_outcome_is_rejected(self):
+        frame = make_frame()
+        frame.loc[0, "y"] = np.inf
+        for outcome_type in ("count", "continuous"):
+            with pytest.raises(ValueError, match="non-finite"):
+                LongitudinalData(
+                    frame,
+                    id_col="pid",
+                    time_col="wave",
+                    outcome_col="y",
+                    outcome_type=outcome_type,
+                )
+
+    def test_observed_times_preserves_meaningful_order(self):
+        frame = make_frame()
+        frame["wave"] = frame["wave"].map({1: 0, 2: 3, 3: 12})
+        data = LongitudinalData(
+            frame, id_col="pid", time_col="wave", outcome_col="y"
+        )
+        assert data.observed_times() == (0, 3, 12)  # numeric, not lexicographic
+        declared = LongitudinalData(
+            frame,
+            id_col="pid",
+            time_col="wave",
+            outcome_col="y",
+            times=(0, 3, 12),
+        )
+        assert declared.observed_times() == (0, 3, 12)
 
     def test_negative_count_rejected(self):
         frame = make_frame()
@@ -204,13 +261,45 @@ class TestCompletedDatasetCollection:
         with pytest.raises(ValueError, match="completed dataset 2"):
             CompletedDatasetCollection(data, [good, bad])
 
-    def test_analyze_preserves_order(self):
+    def test_analysis_model_fit_is_called(self):
         data = make_data()
         frames = [
             data.completed_with([5.0, 3.0, 0.0]),
             data.completed_with([4.0, 2.0, 1.0]),
         ]
         collection = CompletedDatasetCollection(data, frames)
-        means = collection.analyze(lambda f: f["y"].mean())
+
+        class MeanModel:
+            calls = 0
+
+            def fit(self, frame):
+                MeanModel.calls += 1
+                y = frame["y"].to_numpy()
+                return AnalysisEstimate(
+                    names=("mean",),
+                    estimates=[y.mean()],
+                    covariance=[[y.var(ddof=1) / len(y)]],
+                )
+
+        estimates = collection.analyze(MeanModel())
+        assert MeanModel.calls == 2
         expected = [f["y"].mean() for f in frames]
-        assert means == pytest.approx(expected)
+        assert [e.estimates[0] for e in estimates] == pytest.approx(expected)
+
+    def test_analyze_rejects_wrong_return_type(self):
+        data = make_data()
+        collection = CompletedDatasetCollection(
+            data, [data.completed_with([5.0, 3.0, 0.0])]
+        )
+        with pytest.raises(TypeError, match="expected AnalysisEstimate"):
+            collection.analyze(CallableAnalysis(lambda f: f["y"].mean()))
+
+    def test_declaration_is_carried(self):
+        from longmi import ValidityDeclaration
+
+        data = make_data()
+        decl = ValidityDeclaration(missingness_assumption="MAR")
+        collection = CompletedDatasetCollection(
+            data, [data.completed_with([5.0, 3.0, 0.0])], declaration=decl
+        )
+        assert collection.declaration is decl

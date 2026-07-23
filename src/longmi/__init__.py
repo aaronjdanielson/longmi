@@ -5,6 +5,7 @@ Implements established missing-data theory (Rubin 1976, 1987; Barnard–Rubin
 ``docs/theory/mathematical_foundations.md``.
 """
 
+from .analysis import CallableAnalysis
 from .contracts import AnalysisModel, Imputer, ValidityDeclaration
 from .data import CompletedDatasetCollection, LongitudinalData
 from .pooling import pool_rubin
@@ -16,6 +17,7 @@ __version__ = "0.1.0.dev0"
 __all__ = [
     "AnalysisEstimate",
     "AnalysisModel",
+    "CallableAnalysis",
     "CompletedDatasetCollection",
     "DeltaAdjustment",
     "Imputer",

@@ -61,20 +61,44 @@ $$
   $\overline Q_j \pm t_{\nu_j,\,1-\alpha/2}\sqrt{T_{jj}}$, with the normal
   reference when $\nu_j = \infty$.
 
+## Degrees-of-freedom methods
+
+`pool_rubin(..., df_method=...)` selects the rule; the point estimate and
+$T$ are identical across methods.
+
+- **`"barnard_rubin"` (default)** — Barnard–Rubin (1999), computed with the
+  same algebraic rearrangement current `mice::pool.scalar` (rule
+  `"rubin1987"`, mice ≥ 3.x) uses,
+
+  $$
+  \nu_j = \frac{(M-1)\,\omega_j}
+               {(\nu_{\mathrm{com}}+3)(M-1) + \lambda_j^2\,\omega_j},
+  \qquad
+  \omega_j = (1-\lambda_j)(1+\nu_{\mathrm{com}})\,\nu_{\mathrm{com}},
+  $$
+
+  which is well-defined at $\lambda_j = 0$: with infinite
+  $\nu_{\mathrm{com}}$, $B_{jj} = 0$ gives $\nu_j = \infty$ (normal
+  reference) and $\gamma_j = 0$; with finite $\nu_{\mathrm{com}}$ it gives
+  the observed-data df $\nu_{\mathrm{obs},j}$. (Historical note: mice
+  versions predating this rearrangement clamped $\lambda < 10^{-4}$;
+  current mice and longmi do not.)
+- **`"large_sample"`** — Rubin (1987) $\nu_j = (M-1)/\lambda_j^2$ even when
+  $\nu_{\mathrm{com}}$ is provided (no Barnard–Rubin adjustment).
+
 ## Edge cases
 
-- $B_{jj} = 0$: $r_j = \lambda_j = \gamma_j = 0$, $\nu_j = \infty$,
-  $T_{jj} = \overline U_{jj}$.
+- $B_{jj} = 0$: $r_j = \lambda_j = 0$, $T_{jj} = \overline U_{jj}$; df and
+  fmi per `df_method` above.
 - $M = 1$: refused — between-imputation variance is undefined.
 - Non-positive $\overline U_{jj}$: refused.
 - Inconsistent `dfcom` across fits: refused.
+- The result is invariant to the order of the estimates list.
 
-## Deviation from mice
+## Cross-language parity
 
-`mice` clamps $\lambda < 10^{-4}$ up to $10^{-4}$ inside its Barnard–Rubin
-computation; `longmi` instead propagates the exact value (with the
-$\lambda = 0$ limit handled analytically). Agreement with `mice` is
-therefore exact for $\lambda \ge 10^{-4}$ — any realistic amount of missing
-information — which the cross-language suite verifies at relative tolerance
-$10^{-12}$ ([validation/r/rubin_reference.R](../../validation/r/rubin_reference.R),
+The default method matches `mice::pool.scalar` exactly, verified at
+relative tolerance $10^{-12}$ — including a $\lambda < 10^{-4}$ clamp case
+and a zero-$B$ case
+([validation/r/rubin_reference.R](../../validation/r/rubin_reference.R),
 [tests/cross_language/](../../tests/cross_language/)).

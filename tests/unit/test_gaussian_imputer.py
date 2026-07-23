@@ -9,7 +9,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from longmi import AnalysisEstimate, DeltaAdjustment, LongitudinalData, pool_rubin
+from longmi import (
+    AnalysisEstimate,
+    CallableAnalysis,
+    DeltaAdjustment,
+    LongitudinalData,
+    pool_rubin,
+)
 from longmi.impute import JointGaussianImputer
 
 WAVES = (1, 2, 3)
@@ -137,10 +143,24 @@ class TestGuards:
         with pytest.raises(ValueError, match="continuous outcomes only"):
             JointGaussianImputer().impute(data, 2, np.random.default_rng(0))
 
-    def test_incomplete_row_grid_rejected(self):
+    def test_incomplete_row_grid_rejected_at_construction(self):
         frame, _ = simulate(n=60)
         frame = frame.drop(index=frame.index[1])  # participant 0 loses wave 2
-        data = make_data(frame)
+        with pytest.raises(ValueError, match="grid is incomplete"):
+            make_data(frame)
+
+    def test_incomplete_row_grid_rejected_by_imputer_without_declared_times(self):
+        from longmi import LongitudinalData
+
+        frame, _ = simulate(n=60)
+        frame = frame.drop(index=frame.index[1])
+        data = LongitudinalData(  # no times declared: constructor cannot know
+            frame,
+            id_col="pid",
+            time_col="wave",
+            outcome_col="y",
+            predictor_cols=("treat",),
+        )
         with pytest.raises(ValueError, match="every design wave"):
             JointGaussianImputer().impute(data, 2, np.random.default_rng(0))
 
@@ -182,7 +202,10 @@ class TestStatisticalRecovery:
         """Pooled wave-3 treatment effect close to truth; available-case is
         the biased comparator (dropout depends on the outcome history)."""
         _, _ = mar_data
-        pooled = pool_rubin(collection.analyze(wave3_treatment_effect))
+        pooled = pool_rubin(
+            collection.analyze(CallableAnalysis(wave3_treatment_effect)),
+            validity=collection.declaration,
+        )
         idx = pooled.names.index("treat")
         truth = TRUE_B[1, 2]
         assert pooled.qbar[idx] == pytest.approx(truth, abs=3 * pooled.se[idx])
@@ -190,7 +213,7 @@ class TestStatisticalRecovery:
         assert lo < truth < hi
 
     def test_pooled_se_exceeds_single_imputation_se(self, collection):
-        ests = collection.analyze(wave3_treatment_effect)
+        ests = collection.analyze(CallableAnalysis(wave3_treatment_effect))
         pooled = pool_rubin(ests)
         idx = pooled.names.index("treat")
         single_se = np.sqrt(ests[0].covariance[idx, idx])

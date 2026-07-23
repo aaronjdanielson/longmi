@@ -8,22 +8,18 @@ Barnard & Rubin (1999). Derivations and exact formulas:
 
 Degrees-of-freedom methods
 --------------------------
-``"barnard_rubin_mice"`` (default)
-    Bit-compatible with ``mice::pool.scalar`` (rule ``"rubin1987"``),
-    including mice's clamp of ``lambda`` below 1e-4 when computing degrees
-    of freedom. Zero between-imputation variance therefore yields a very
-    large but *finite* df of ``(M - 1) * 1e8`` (times the Barnard-Rubin
-    factor when ``dfcom`` is finite) and an fmi of about ``2 / (df + 3)``,
-    exactly as mice reports.
-``"barnard_rubin_exact"``
-    The same formulas without the clamp, with the ``lambda -> 0`` limit
-    taken analytically: zero between-imputation variance yields
-    ``riv = lambda = 0``, infinite df (normal reference), and
-    ``fmi = riv / (1 + riv) = 0`` when ``dfcom`` is infinite; with finite
-    ``dfcom`` the Barnard-Rubin observed-data df applies.
+``"barnard_rubin"`` (default)
+    Barnard-Rubin (1999), computed with the same algebraic rearrangement
+    ``mice::pool.scalar`` (rule ``"rubin1987"``, mice >= 3.x) uses, so the
+    two agree bit-for-bit — including the ``lambda = 0`` boundary: zero
+    between-imputation variance yields infinite df (normal reference) and
+    ``fmi = 0`` when ``dfcom`` is infinite, and the observed-data df
+    ``dfobs`` with finite ``dfcom``. (Historical note: mice versions before
+    the rearrangement clamped ``lambda`` below 1e-4; current mice and
+    longmi do not.)
 ``"large_sample"``
     Rubin (1987) large-sample df ``(M - 1) / lambda**2`` even when
-    ``dfcom`` is provided (no Barnard-Rubin adjustment), without the clamp.
+    ``dfcom`` is provided (no Barnard-Rubin adjustment).
 """
 
 from __future__ import annotations
@@ -37,8 +33,7 @@ from ..results import AnalysisEstimate, RubinPooledResult
 
 __all__ = ["pool_rubin"]
 
-_DF_METHODS = ("barnard_rubin_mice", "barnard_rubin_exact", "large_sample")
-_MICE_LAMBDA_FLOOR = 1e-4
+_DF_METHODS = ("barnard_rubin", "large_sample")
 
 
 def _common_dfcom(estimates: Sequence[AnalysisEstimate]) -> float | None:
@@ -53,30 +48,20 @@ def _common_dfcom(estimates: Sequence[AnalysisEstimate]) -> float | None:
 def _degrees_of_freedom(
     m: int, lam: np.ndarray, dfcom: float | None, df_method: str
 ) -> np.ndarray:
-    finite_dfcom = dfcom is not None and np.isfinite(dfcom)
-    if df_method == "barnard_rubin_mice":
-        lam_df = np.maximum(lam, _MICE_LAMBDA_FLOOR)
-        df_old = (m - 1) / np.square(lam_df)
-        if finite_dfcom:
-            df_obs = (dfcom + 1.0) / (dfcom + 3.0) * dfcom * (1.0 - lam_df)
-            return df_old * df_obs / (df_old + df_obs)
-        return df_old
     with np.errstate(divide="ignore"):
         df_old = np.where(lam > 0, (m - 1) / np.square(lam), np.inf)
-    if df_method == "large_sample" or not finite_dfcom:
+    if df_method == "large_sample" or dfcom is None or not np.isfinite(dfcom):
         return df_old
-    # barnard_rubin_exact with finite dfcom
-    df_obs = (dfcom + 1.0) / (dfcom + 3.0) * dfcom * (1.0 - lam)
-    with np.errstate(invalid="ignore"):
-        return np.where(
-            np.isfinite(df_old), df_old * df_obs / (df_old + df_obs), df_obs
-        )
+    # Barnard-Rubin via mice's rearrangement, well-defined at lambda = 0
+    # (equal to df_old * df_obs / (df_old + df_obs) wherever both exist)
+    tmp = (1.0 - lam) * (1.0 + dfcom) * dfcom
+    return (m - 1) * tmp / ((dfcom + 3.0) * (m - 1) + np.square(lam) * tmp)
 
 
 def pool_rubin(
     estimates: Sequence[AnalysisEstimate],
     *,
-    df_method: str = "barnard_rubin_mice",
+    df_method: str = "barnard_rubin",
     validity: Mapping[str, Any] | ValidityDeclaration | None = None,
 ) -> RubinPooledResult:
     """Pool completed-data estimates with Rubin's rules.
@@ -90,8 +75,8 @@ def pool_rubin(
         realigned. The result is invariant to the order of the list.
     df_method:
         Degrees-of-freedom rule; see the module docstring. The default,
-        ``"barnard_rubin_mice"``, is bit-compatible with
-        ``mice::pool.scalar``.
+        ``"barnard_rubin"``, is bit-compatible with ``mice::pool.scalar``
+        (mice >= 3.x).
     validity:
         Validity-declaration fields to attach for ``validity_report()`` —
         either a mapping or a :class:`ValidityDeclaration` (e.g. carried on

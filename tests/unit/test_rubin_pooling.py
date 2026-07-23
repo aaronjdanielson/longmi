@@ -139,15 +139,60 @@ class TestGuards:
             pool_rubin([a, b])
 
     def test_zero_between_variance(self):
+        # matches current mice: lambda = 0 gives infinite df, fmi = 0
         result = pool_rubin([scalar_estimate(2.0, 1.5) for _ in range(4)])
         assert result.b[0, 0] == 0.0
         assert result.t[0, 0] == pytest.approx(1.5)
         assert result.riv[0] == 0.0
+        assert result.lambda_[0] == 0.0
         assert result.fmi[0] == 0.0
         assert np.isinf(result.df[0])
         # normal reference when df is infinite
         lo, hi = result.conf_int(0.95)[0]
         assert hi - lo == pytest.approx(2 * 1.959963984540054 * np.sqrt(1.5), rel=1e-9)
+
+    def test_zero_between_variance_with_finite_dfcom(self):
+        # lambda = 0 boundary of Barnard-Rubin: df equals the observed-data df
+        dfcom = 48.0
+        result = pool_rubin(
+            [scalar_estimate(2.0, 1.5, dfcom=dfcom) for _ in range(4)]
+        )
+        df_obs = (dfcom + 1) / (dfcom + 3) * dfcom
+        assert result.df[0] == pytest.approx(df_obs, rel=1e-12)
+        assert result.fmi[0] == pytest.approx(2.0 / (df_obs + 3.0), rel=1e-12)
+
+    def test_pooling_is_invariant_to_imputation_order(self):
+        qs = [np.array([1.0, 0.5]), np.array([1.2, 0.7]), np.array([0.8, 0.6])]
+        us = [np.eye(2) * 0.1, np.eye(2) * 0.12, np.eye(2) * 0.11]
+        ests = [
+            AnalysisEstimate(names=("a", "b"), estimates=q, covariance=u)
+            for q, u in zip(qs, us)
+        ]
+        forward = pool_rubin(ests)
+        reverse = pool_rubin(ests[::-1])
+        np.testing.assert_allclose(forward.qbar, reverse.qbar, rtol=1e-14)
+        np.testing.assert_allclose(forward.t, reverse.t, rtol=1e-14)
+        np.testing.assert_allclose(forward.df, reverse.df, rtol=1e-14)
+
+    def test_indefinite_covariance_is_rejected(self):
+        # symmetric, nonnegative diagonal, but eigenvalues (-1, 3)
+        with pytest.raises(ValueError, match="positive semidefinite"):
+            AnalysisEstimate(
+                names=("a", "b"),
+                estimates=[0.0, 0.0],
+                covariance=[[1.0, 2.0], [2.0, 1.0]],
+            )
+
+    def test_large_sample_mode_ignores_dfcom(self):
+        ests = [scalar_estimate(q, 1.0, dfcom=30.0) for q in (1.0, 2.0, 3.0)]
+        result = pool_rubin(ests, df_method="large_sample")
+        lam = result.lambda_[0]
+        assert result.df[0] == pytest.approx((3 - 1) / lam**2)
+
+    def test_unknown_df_method_rejected(self):
+        ests = [scalar_estimate(q, 1.0) for q in (1.0, 2.0)]
+        with pytest.raises(ValueError, match="df_method"):
+            pool_rubin(ests, df_method="nope")
 
     def test_asymmetric_covariance_rejected(self):
         with pytest.raises(ValueError, match="symmetric"):
@@ -175,9 +220,63 @@ class TestValidityReport:
             },
         )
         report = result.validity_report()
-        assert "Missingness assumption: MAR" in report
-        assert "MAR empirically testable: No" in report
-        assert "Parameter uncertainty propagated: Yes" in report
-        assert "Pooling method: Rubin" in report
-        # undeclared favorable claims must not default to Yes
+        # provenance tags distinguish assertions from enforced properties
+        assert "Missingness assumption: MAR [declared]" in report
+        assert "MAR empirically testable: No [declared]" in report
+        assert "Parameter uncertainty propagated: Yes [verified by backend]" in report
+        assert "Observed outcomes preserved: Yes [verified]" in report
+        assert "Pooling method: Rubin [verified]" in report
+        # undeclared favorable claims must not default to Yes, and get no tag
         assert "Longitudinal dependence modeled: not declared" in report
+
+    def test_accepts_declaration_object(self):
+        from longmi import ValidityDeclaration
+
+        decl = ValidityDeclaration(
+            missingness_assumption="MCAR", pooling_method="Rubin"
+        )
+        result = pool_rubin(
+            [scalar_estimate(q, 1.0) for q in (1.0, 2.0)], validity=decl
+        )
+        assert "Missingness assumption: MCAR [declared]" in result.validity_report()
+
+
+class TestResultIntegrity:
+    def test_pooled_result_validates_shapes(self):
+        from longmi import RubinPooledResult
+
+        good = pool_rubin([scalar_estimate(q, 1.0) for q in (1.0, 2.0, 3.0)])
+        with pytest.raises(ValueError, match="m must be >= 2"):
+            RubinPooledResult(
+                names=good.names, m=1, qbar=good.qbar, ubar=good.ubar,
+                b=good.b, t=good.t, riv=good.riv, lambda_=good.lambda_,
+                fmi=good.fmi, df=good.df,
+            )
+        with pytest.raises(ValueError, match="shape"):
+            RubinPooledResult(
+                names=good.names, m=good.m, qbar=[1.0, 2.0], ubar=good.ubar,
+                b=good.b, t=good.t, riv=good.riv, lambda_=good.lambda_,
+                fmi=good.fmi, df=good.df,
+            )
+        with pytest.raises(ValueError, match="t must equal"):
+            RubinPooledResult(
+                names=good.names, m=good.m, qbar=good.qbar, ubar=good.ubar,
+                b=good.b, t=good.t * 2.0, riv=good.riv, lambda_=good.lambda_,
+                fmi=good.fmi, df=good.df,
+            )
+
+    def test_result_arrays_are_immutable(self):
+        result = pool_rubin([scalar_estimate(q, 1.0) for q in (1.0, 2.0, 3.0)])
+        with pytest.raises(ValueError, match="read-only"):
+            result.qbar[0] = 999.0
+        with pytest.raises(ValueError, match="read-only"):
+            result.t[0, 0] = 999.0
+
+    def test_estimate_arrays_are_immutable(self):
+        est = scalar_estimate(1.0, 1.0)
+        with pytest.raises(ValueError, match="read-only"):
+            est.estimates[0] = 999.0
+        with pytest.raises(ValueError, match="read-only"):
+            est.covariance[0, 0] = 999.0
+        with pytest.raises(TypeError):
+            est.metadata["new"] = 1

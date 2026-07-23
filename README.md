@@ -48,16 +48,24 @@ The deterministic core is implemented and validated:
   ([validation/r/rubin_reference.R](validation/r/rubin_reference.R),
   [tests/cross_language/](tests/cross_language/)).
 
-The first imputation backend is implemented:
+Two imputation backends are implemented:
 
 - `JointGaussianImputer` — posterior-predictive joint Gaussian imputation
   for fixed-wave data via exact conjugate data augmentation (Schafer 1997),
   wave-saturated mean model, unstructured covariance, delta-adjustment
   support ([src/longmi/impute/gaussian.py](src/longmi/impute/gaussian.py),
-  [docs/algorithms/joint_gaussian_imputer.md](docs/algorithms/joint_gaussian_imputer.md)).
+  [docs/algorithms/joint_gaussian_imputer.md](docs/algorithms/joint_gaussian_imputer.md));
+- `NegativeBinomialImputer` — NB random-intercept imputation for
+  longitudinal counts: Gauss–Hermite ML, declared large-sample posterior
+  approximation for parameter draws, exact conditional random-intercept
+  draws, gamma–Poisson outcome draws, linear-predictor delta adjustment
+  ([src/longmi/impute/negbin.py](src/longmi/impute/negbin.py),
+  [docs/algorithms/negative_binomial_glmm.md](docs/algorithms/negative_binomial_glmm.md)).
 
-Next milestones: the negative-binomial GLMM imputer, analysis adapters,
-then the simulation and cross-language statistical validation suite.
+Analyses plug in through `AnalysisModel.fit`; wrap plain functions with
+`CallableAnalysis`. Next milestones: statsmodels GEE/GLM adapters, the MI
+arm of the epil example, then the simulation and cross-language
+statistical validation suite.
 
 ## Examples and validation data
 
