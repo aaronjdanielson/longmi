@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "longmi"
+version = "0.1.0.dev0"
+description = "Multiple imputation for incomplete longitudinal outcomes with explicit validity conditions"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Aaron Danielson", email = "aaronjdanielson@gmail.com" }]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "scipy>=1.10",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/longmi"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

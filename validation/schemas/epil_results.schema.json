@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "epil_count results row",
+  "description": "One row of results_python.csv / results_r.csv in examples/epil_count. Both languages must emit this schema with identical (analysis, term) sets.",
+  "type": "object",
+  "properties": {
+    "analysis": {
+      "enum": ["complete", "available_case", "mi_rubin", "ipw"]
+    },
+    "term": {
+      "enum": ["intercept", "treat", "period", "treat_period", "lbase1", "age"]
+    },
+    "estimate": { "type": "number" },
+    "robust_se": { "type": "number", "exclusiveMinimum": 0 },
+    "n_rows": { "type": "integer", "minimum": 1 },
+    "n_subjects": { "type": "integer", "minimum": 1 }
+  },
+  "required": ["analysis", "term", "estimate", "robust_se", "n_rows", "n_subjects"],
+  "additionalProperties": false
+}

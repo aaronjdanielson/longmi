@@ -1,0 +1,20 @@
+{
+  "dataset": "epil",
+  "upstream_package": "MASS",
+  "upstream_license": "GPL-2 | GPL-3",
+  "source": "Rdatasets mirror via statsmodels.datasets.get_rdataset",
+  "citation": "Thall PF, Vail SC (1990). Some covariance models for longitudinal count data with overdispersion. Biometrics 46, 657-671; distributed in Venables WN, Ripley BD, MASS.",
+  "erratum": "MASS 7.3-65 corrected y in row 31 (subject 8, period 3) from 21 to 23; the R reference requires MASS >= 7.3-65 to match this mirror.",
+  "n_rows": 236,
+  "n_subjects": 59,
+  "columns": [
+    "subject",
+    "period",
+    "y",
+    "treat",
+    "base",
+    "age",
+    "lbase1"
+  ],
+  "sha256_normalized_core": "a528006cfe77f1d546ab366cc655be73505ccdfd64ae464c83aca27597b7382a"
+}

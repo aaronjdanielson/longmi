@@ -1,0 +1,17 @@
+# External reference repositories used as validation oracles.
+#
+# These are never copied into longmi (licensing is unclarified upstream);
+# they are pinned external checkouts located via environment variables.
+
+[wijesuriya_tutorial]
+# https://github.com/rushwije/Longitudinal_multiple_imputation_tutorial
+# R and Stata syntax for "Multiple imputation for longitudinal data:
+# A tutorial", plus the simulated CATS dataset (CATS_dataL.csv).
+path_environment_variable = "LONGMI_TUTORIAL_REPO"
+expected_commit = "f92a32d4a110f3d6c67a9905da732ed073898b9b"
+paper_doi = "10.1002/sim.10274"
+required_files = [
+    "CATS_dataL.csv",
+    "Longitudinal_data.R",
+    "Simulation_of_data.R",
+]
