@@ -12,7 +12,11 @@ from .pooling import pool_rubin
 from .results import AnalysisEstimate, RubinPooledResult
 from .scenarios import DeltaAdjustment
 
-__version__ = "0.1.0a1"
+try:
+    from importlib.metadata import PackageNotFoundError, version as _version
+    __version__ = _version("longmi")
+except PackageNotFoundError:  # running from a checkout without install
+    __version__ = "0+unknown"
 
 __all__ = [
     "AnalysisEstimate",

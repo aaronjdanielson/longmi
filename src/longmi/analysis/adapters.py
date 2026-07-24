@@ -126,6 +126,11 @@ class StatsmodelsGLM(BaseAnalysis):
             frame = frame.loc[self.subset(frame)]
         model = smf.glm(self.formula, data=frame, family=self._family(sm))
         result = model.fit(cov_type=self.cov_type, **self.fit_kwargs)
+        if not bool(getattr(result, "converged", True)):
+            raise RuntimeError(
+                "StatsmodelsGLM did not converge for this completed dataset; "
+                "refusing to pool a nonconverged fit"
+            )
         return AnalysisEstimate(
             names=tuple(result.params.index),
             estimates=result.params.to_numpy(),
@@ -260,6 +265,11 @@ class StatsmodelsGEE(BaseAnalysis):
             time=None if self.time is None else frame[self.time],
         )
         result = model.fit(cov_type=self.cov_type, **self.fit_kwargs)
+        if not bool(getattr(result, "converged", True)):
+            raise RuntimeError(
+                "StatsmodelsGEE did not converge for this completed dataset; "
+                "refusing to pool a nonconverged fit"
+            )
         return AnalysisEstimate(
             names=tuple(result.params.index),
             estimates=result.params.to_numpy(),

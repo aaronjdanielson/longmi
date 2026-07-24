@@ -354,7 +354,12 @@ class CompletedDatasetCollection:
         """
         estimates: list[AnalysisEstimate] = []
         for index, frame in enumerate(self, start=1):
-            estimate = model.fit(frame)
+            try:
+                estimate = model.fit(frame)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"analysis failed for completed dataset {index}"
+                ) from exc
             if not isinstance(estimate, AnalysisEstimate):
                 raise TypeError(
                     f"analysis of completed dataset {index} returned "

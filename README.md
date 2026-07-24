@@ -25,10 +25,12 @@ Report the result and its validity conditions
 ## Installation
 
 ```bash
-pip install "longmi[analysis]"   # public alpha on PyPI
+pip install longmi               # core imputation and pooling
+pip install "longmi[analysis]"   # plus the statsmodels GEE/GLM adapters
 ```
 
-Or from a checkout for development: `pip install -e ".[dev]"`.
+The quickstart below uses the `analysis` extra. From a checkout for
+development: `pip install -e ".[dev]"`.
 
 ## Quickstart
 
@@ -80,7 +82,7 @@ shifted = fit.impute(m=50, random_state=20260723,
 
 - **Data contract** — `LongitudinalData` validates the participant-wave
   grid, preserves observed outcomes bit-for-bit through completion, and
-  enforces count support ([src/longmi/data.py](src/longmi/data.py)).
+  enforces count support ([src/longmi/data.py](https://github.com/aaronjdanielson/longmi/blob/main/src/longmi/data.py)).
 - **Imputers** — `JointGaussianImputer` (continuous outcomes; exact
   conjugate data augmentation, wave-saturated mean, unstructured
   covariance) and `NegativeBinomialImputer` (longitudinal counts; NB
@@ -104,25 +106,25 @@ Deterministic components are cross-validated against R (`mice`);
 imputation backends have unit, invariant, and numerical-diagnostic tests
 plus a seeded simulation suite for bias and confidence-interval coverage
 (`pytest -m slow tests/simulation`). See
-[docs/project-status.md](docs/project-status.md) for the canonical
+[docs/project-status.md](https://github.com/aaronjdanielson/longmi/blob/main/docs/project-status.md) for the canonical
 per-feature maturity table — the backends are not claimed statistically
 validated beyond what that table states.
 
 ## Documentation
 
-- [docs/index.md](docs/index.md) — documentation home (build with
+- [docs/index.md](https://github.com/aaronjdanielson/longmi/blob/main/docs/index.md) — documentation home (build with
   `mkdocs serve` after `pip install -e ".[docs]"`);
-- [Why impute the response?](docs/explanation/why_impute_the_response.md)
-  and [MCAR, MAR, MNAR](docs/explanation/mcar_mar_mnar.md) — concepts;
-- [Choosing an imputer](docs/how_to/choose_an_imputer.md),
-  [interpreting diagnostics](docs/how_to/interpret_diagnostics.md),
-  [reporting an analysis](docs/how_to/report_an_analysis.md) — task guides;
-- [Mathematical foundations and validity conditions](docs/theory/mathematical_foundations.md),
-  [assumptions A1–A8](docs/theory/assumptions.md),
-  [GEE after imputation](docs/theory/gee_after_imputation.md) — theory;
-- [algorithm specifications](docs/algorithms/) — what the software
+- [Why impute the response?](https://github.com/aaronjdanielson/longmi/blob/main/docs/explanation/why_impute_the_response.md)
+  and [MCAR, MAR, MNAR](https://github.com/aaronjdanielson/longmi/blob/main/docs/explanation/mcar_mar_mnar.md) — concepts;
+- [Choosing an imputer](https://github.com/aaronjdanielson/longmi/blob/main/docs/how_to/choose_an_imputer.md),
+  [interpreting diagnostics](https://github.com/aaronjdanielson/longmi/blob/main/docs/how_to/interpret_diagnostics.md),
+  [reporting an analysis](https://github.com/aaronjdanielson/longmi/blob/main/docs/how_to/report_an_analysis.md) — task guides;
+- [Mathematical foundations and validity conditions](https://github.com/aaronjdanielson/longmi/blob/main/docs/theory/mathematical_foundations.md),
+  [assumptions A1–A8](https://github.com/aaronjdanielson/longmi/blob/main/docs/theory/assumptions.md),
+  [GEE after imputation](https://github.com/aaronjdanielson/longmi/blob/main/docs/theory/gee_after_imputation.md) — theory;
+- [algorithm specifications](https://github.com/aaronjdanielson/longmi/blob/main/docs/algorithms/) — what the software
   actually computes, approximations included;
-- [worked examples](docs/examples/) — the epil count example and the
+- [worked examples](https://github.com/aaronjdanielson/longmi/blob/main/docs/examples/) — the epil count example and the
   external validation oracles.
 
 ## Development
@@ -136,6 +138,6 @@ Rscript validation/r/rubin_reference.R   # regenerate R pooling reference
 
 longmi implements established missing-data theory (Rubin 1976, 1987;
 Barnard–Rubin 1999; Meng 1994; Wang–Robins 1998); it does not introduce a
-new proof of multiple imputation. See [REFERENCES.md](REFERENCES.md) for
-sources and [CITATION.cff](CITATION.cff) to cite the software. MIT
+new proof of multiple imputation. See [REFERENCES.md](https://github.com/aaronjdanielson/longmi/blob/main/REFERENCES.md) for
+sources and [CITATION.cff](https://github.com/aaronjdanielson/longmi/blob/main/CITATION.cff) to cite the software. MIT
 license.

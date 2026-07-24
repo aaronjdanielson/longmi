@@ -291,8 +291,9 @@ class TestCompletedDatasetCollection:
         collection = CompletedDatasetCollection(
             data, [data.completed_with([5.0, 3.0, 0.0])]
         )
-        with pytest.raises(TypeError, match="expected AnalysisEstimate"):
+        with pytest.raises(RuntimeError, match="completed dataset 1") as info:
             collection.analyze(CallableAnalysis(lambda f: f["y"].mean()))
+        assert isinstance(info.value.__cause__, TypeError)
 
     def test_declaration_is_carried(self):
         from longmi import ValidityDeclaration
