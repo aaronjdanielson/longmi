@@ -80,6 +80,38 @@ def main() -> int:
                 f"{bad[['analysis', 'term', col]].to_string(index=False)}"
             )
 
+    # -- cross-method MI comparison (statistical agreement, not parity) ----
+    r_mi_path = HERE / "results_r_mi.csv"
+    if r_mi_path.exists():
+        r_mi = pd.read_csv(r_mi_path)
+        mi = py[py["analysis"] == "mi_rubin"].merge(
+            r_mi, on="term", suffixes=("_longmi", "_r"), validate="one_to_one"
+        )
+        mi["diff_in_se"] = (
+            (mi["estimate_longmi"] - mi["estimate_r"]).abs()
+            / mi[["robust_se_longmi", "robust_se_r"]].max(axis=1)
+        )
+        mi["se_ratio"] = mi["robust_se_longmi"] / mi["robust_se_r"]
+        print(
+            "\ncross-method MI comparison (longmi NB GLMM vs mice wide-PMM"
+            " — different imputation models; statistical agreement only):"
+        )
+        print(
+            mi[["term", "estimate_longmi", "estimate_r", "diff_in_se",
+                "se_ratio"]].to_string(index=False,
+                                       float_format=lambda v: f"{v:0.4f}")
+        )
+        if (mi["diff_in_se"] > 1.5).any():
+            failures.append(
+                "cross-method MI estimates differ by more than 1.5 pooled SEs:"
+                f"\n{mi[mi['diff_in_se'] > 1.5][['term', 'diff_in_se']]}"
+            )
+        if ((mi["se_ratio"] < 0.5) | (mi["se_ratio"] > 2.0)).any():
+            failures.append("cross-method MI standard errors differ materially")
+    else:
+        print("\n(results_r_mi.csv not found; run run_mi_reference.R for the "
+              "cross-method MI comparison)")
+
     if failures:
         print("\nFAIL")
         for f in failures:

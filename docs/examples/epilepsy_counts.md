@@ -27,14 +27,20 @@ checked against the truth it is trying to recover. Implementation lives in
    *(done)*
 7. **Pool with Rubin's rules** (`pool_rubin`, validity carried from the
    imputer's declaration). *(done)*
-8. **Compare** MI against complete-data and available-case estimates
-   *(done — see `results_python.csv`)*; the IPW arm remains open.
-9. **Delta-adjusted MNAR sensitivity analysis** — imputed means scaled by
-   0.8 and 1.25 reusing the same fitted imputation model *(done)*; the
-   `mnar_stress_test` mask demonstration remains open.
-10. **Reproduce the workflow in R** and compare pooled results. *(open —
-    the R comparison currently covers the complete-data and
-    available-case analyses)*
+8. **Compare** MI against complete-data, available-case, and IPW-GEE
+   estimates (IPW: stabilized sequential-MAR weights, respondent-level
+   bootstrap re-estimating the weights per replicate). *(done — see
+   `comparison_table.csv`)*
+9. **Delta-adjusted MNAR sensitivity analysis** — a seven-point response
+   curve (`delta_response.csv`, means x0.7...x1.4) — plus the
+   `mnar_stress_test` demonstration: MAR imputation applied to
+   MNAR-generated missingness (`mi_under_mnar` in the comparison table).
+   MI can be correctly implemented and still be biased when MAR is false.
+   *(done)*
+10. **Reproduce the MI workflow in R** (`run_mi_reference.R`: wide-format
+    mice PMM + geepack + mice::pool on the same mask) — a *cross-method
+    statistical comparison*, not backend parity: pooled estimates agree
+    within 0.5 pooled SEs, SE ratios 0.88-1.21. *(done)*
 
 ## Why epil
 

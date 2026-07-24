@@ -1,0 +1,6 @@
+python 3.14.6
+numpy 2.5.1
+pandas 3.0.5
+scipy 1.18.0
+statsmodels 0.14.6
+longmi 0.1.0.dev0

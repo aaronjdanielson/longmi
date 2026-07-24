@@ -69,7 +69,11 @@ this table.**
 
 - Rubin pooling: exact parity with `mice` (complete).
 - epil example: Python (statsmodels) vs R (geepack) complete-data and
-  available-case GEE agree within 2e-3 (cross-implementation tolerance);
-  the MI arm currently runs on the Python side only.
+  available-case GEE agree within 2e-3 (cross-implementation, numerical
+  agreement); the MI arm is additionally compared cross-method against R
+  (mice wide-PMM + geepack + mice::pool on the same mask) — *statistical
+  agreement*: pooled estimates within 0.5 pooled SEs, SE ratios 0.88-1.21.
+  The full narrative (complete / available-case / MI / IPW / MNAR failure
+  / delta curve) is implemented; see examples/epil_count.
 - CATS tutorial parity: external checkout pinned and verified; the
   statistical comparison is in progress.
