@@ -19,7 +19,9 @@ expected to stabilize after the simulation grid below is complete.
 | `StatsmodelsGEE` adapter | complete | complete — exact agreement with direct statsmodels fits, incl. the motivating registry analysis (private data, external harness) | n/a | n/a | covered via NB study | experimental |
 | `StatsmodelsGLM` adapter | complete | complete | n/a | n/a | pending | experimental |
 | Delta-adjusted MNAR sensitivity | complete (scalar delta; group/wave-specific deltas planned) | complete | n/a | pending | pending | experimental |
-| Bootstrap-then-impute pooling | planned (0.2) | — | — | — | — | — |
+| `BernoulliImputer` (binary outcomes) | complete | complete | optimizer, curvature, separation, grid | pending | smoke matrix (MCAR/MAR validated vs marginal GEE target; omitted-interaction & MNAR expected failures; delta curve) | experimental |
+| Targeted delta rules (`where`/`times`, `DeltaScenario`) | complete (wired in Bernoulli backend) | complete | n/a | pending | via delta curve | experimental |
+| Bootstrap-then-impute pooling | planned | — | — | — | — | — |
 | Eligibility indicators (structural missingness) | planned | — | — | — | — | — |
 
 ## Simulation evidence to date

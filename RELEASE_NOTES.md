@@ -1,3 +1,32 @@
+# longmi 0.2.0a1
+
+Binary longitudinal outcomes.
+
+* `outcome_type="binary"`: strict {0,1} validation, boolean
+  normalization, binary completion guarantees.
+* `BernoulliImputer` / `BernoulliFit`: logistic random-intercept
+  imputation on the shared GLMM machinery (Gauss-Hermite ML with
+  verified convergence, curvature validation, adaptive-grid intercept
+  draws). Outcomes are Bernoulli draws, never rounded probabilities.
+  Separation safeguards: all-0/all-1, rank-deficiency, and curvature
+  refusals; quasi-separation warnings.
+* Targeted delta rules: `DeltaAdjustment(where=..., times=...)` and
+  `DeltaScenario` (overlaps rejected; realized per-row deltas recorded).
+  Wired in the Bernoulli backend; logit scale only — exp(delta)
+  multiplies conditional odds, never probabilities.
+* Shared `_glmm` machinery extracted from the NB backend
+  (refactor-invariance verified by golden test).
+* Congeniality stated honestly: the imputer is conditional; marginal
+  logistic GEE is a different estimand. The MI-to-GEE workflow is
+  validated by simulation against the marginal GEE target (MCAR/MAR
+  validated; omitted-interaction and MNAR-under-MAR fail as expected;
+  delta curve monotone) and agrees with R mice(logreg) within 0.10
+  pooled SEs on a shared benchmark (validation/binary/).
+
+Not supported: binomial counts (successes of n), incomplete predictors,
+random slopes, outcome-scale delta for binary data, automatic separation
+resolution, or any claim of universal congeniality with marginal GEE.
+
 # longmi 0.1.0a3
 
 Correctness and hardening release; no new statistical methods.

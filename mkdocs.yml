@@ -35,6 +35,7 @@ nav:
       - Posterior-predictive MI: algorithms/posterior_predictive_mi.md
       - Joint Gaussian imputer: algorithms/joint_gaussian_imputer.md
       - Negative-binomial GLMM: algorithms/negative_binomial_glmm.md
+      - Bernoulli GLMM: algorithms/bernoulli_glmm.md
       - Rubin pooling: algorithms/rubin_pooling.md
   - Examples:
       - Epilepsy counts: examples/epilepsy_counts.md
