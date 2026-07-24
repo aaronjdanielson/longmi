@@ -51,6 +51,7 @@ from ..contracts import ValidityDeclaration
 from ..data import CompletedDatasetCollection, LongitudinalData
 from ..diagnostics import NegativeBinomialFitDiagnostics
 from ..scenarios import DeltaAdjustment
+from . import _glmm
 from .base import BaseFit, BaseImputer, data_fingerprint, normalize_random_state
 
 __all__ = ["NegativeBinomialImputer", "NegativeBinomialFit"]
@@ -190,67 +191,19 @@ class NegativeBinomialImputer(BaseImputer):
                 "imputer with allow_undeclared_times=True to treat the "
                 "observed times as the full design"
             )
-        frame = data.frame
-        # declared design order takes precedence over natural sorting
-        waves = list(data.times) if data.times is not None else list(
-            data.observed_times()
+        x, names, id_index, waves = _glmm.build_design(
+            data, self.time_interactions
         )
-        if len(waves) < 2:
-            raise ValueError("need at least 2 waves")
-
-        cols = [np.ones(len(frame))]
-        names = ["intercept"]
-        for w in waves[1:]:
-            cols.append((frame[data.time_col] == w).to_numpy(dtype=float))
-            names.append(f"wave[{w}]")
-        for col in data.predictor_cols:
-            values = pd.to_numeric(frame[col], errors="raise").to_numpy(dtype=float)
-            cols.append(values)
-            names.append(col)
-            if col in self.time_interactions:
-                for w in waves[1:]:
-                    cols.append(
-                        values * (frame[data.time_col] == w).to_numpy(dtype=float)
-                    )
-                    names.append(f"{col}:wave[{w}]")
-        x = np.column_stack(cols)
-        if np.linalg.matrix_rank(x) < x.shape[1]:
-            raise ValueError("imputation design matrix is rank deficient")
-
-        ids = frame[data.id_col].to_numpy()
-        _, id_index = np.unique(ids, return_inverse=True)
         return x, names, id_index, waves
 
     # -- likelihood -------------------------------------------------------
 
     def _neg_loglik(self, theta, y, x, id_index, observed, n_ids, nodes, weights):
-        p = x.shape[1]
-        beta = theta[:p]
-        kappa = np.exp(theta[p])
-        tau = np.exp(theta[p + 1])
-        eta = x @ beta
-        total = np.zeros((n_ids, len(nodes)))
-        for k, z in enumerate(nodes):
-            b = np.sqrt(2.0) * tau * z
-            ll = _nb_loglik(y[observed], eta[observed] + b, kappa)
-            total[:, k] = np.bincount(id_index[observed], ll, minlength=n_ids)
-        log_w = np.log(weights / np.sqrt(np.pi))
-        return -float(special.logsumexp(total + log_w, axis=1).sum())
-
-    def _numerical_hessian(self, theta, args, eps=1e-4):
-        d = len(theta)
-        hessian = np.empty((d, d))
-        f = lambda t: self._neg_loglik(t, *args)
-        for a in range(d):
-            for b in range(a, d):
-                pp = theta.copy(); pp[a] += eps; pp[b] += eps
-                pm = theta.copy(); pm[a] += eps; pm[b] -= eps
-                mp = theta.copy(); mp[a] -= eps; mp[b] += eps
-                mm = theta.copy(); mm[a] -= eps; mm[b] -= eps
-                hessian[a, b] = hessian[b, a] = (
-                    f(pp) - f(pm) - f(mp) + f(mm)
-                ) / (4 * eps * eps)
-        return hessian
+        return _glmm.mixture_negll(
+            theta, y, x, id_index, observed, n_ids, nodes, weights,
+            row_loglik=lambda yy, eta, extra: _nb_loglik(yy, eta, np.exp(extra[0])),
+            n_extra=1,
+        )
 
     def fit(self, data: LongitudinalData) -> "NegativeBinomialFit":
         x, names, id_index, waves = self._design(data)
@@ -277,60 +230,16 @@ class NegativeBinomialImputer(BaseImputer):
         beta0, *_ = np.linalg.lstsq(x[observed], pseudo, rcond=None)
         theta0 = np.concatenate([beta0, [np.log(2.0), np.log(0.5)]])
         args = (y_filled, x, id_index, observed, n_ids, nodes, weights)
-        result = optimize.minimize(
-            self._neg_loglik, theta0, args=args, method="BFGS",
-            options={"gtol": 1e-6, "maxiter": 500},
+        theta_hat, cov, info = _glmm.fit_marginal_ml(
+            lambda th: self._neg_loglik(th, *args), theta0, "NB GLMM"
         )
-        gradient_norm = float(np.linalg.norm(result.jac, ord=np.inf))
-        objective_ok = np.isfinite(result.fun) and np.all(np.isfinite(result.x))
-        converged = objective_ok and (
-            result.success
-            or gradient_norm < _GRAD_TOL * max(1.0, abs(float(result.fun)))
-        )
-        if not converged:
-            raise RuntimeError(
-                "NB GLMM fit did not converge: "
-                f"success={result.success}, message={result.message!r}, "
-                f"gradient inf-norm={gradient_norm:.3g}; refusing to "
-                "generate imputations from a failed optimum"
-            )
-
-        hessian = self._numerical_hessian(result.x, args)
-        cov = np.linalg.inv(hessian)
-        cov = 0.5 * (cov + cov.T)
-        eigval, eigvec = np.linalg.eigh(cov)
-        cov_min_eig = float(eigval.min())
-        scale = max(1.0, float(np.max(np.abs(eigval))))
-        tolerance = _COV_EIG_RTOL * scale
-        if cov_min_eig < -tolerance:
-            raise RuntimeError(
-                "parameter covariance is materially indefinite "
-                f"(min eigenvalue {cov_min_eig:.6g} vs tolerance "
-                f"{-tolerance:.6g}); the model may be unidentified or "
-                "unconverged"
-            )
-        repaired = bool(cov_min_eig < tolerance)
-        if repaired:
-            eigval = np.maximum(eigval, tolerance)
-            cov = eigvec @ np.diag(eigval) @ eigvec.T
-
         diagnostics = NegativeBinomialFitDiagnostics(
-            optimizer_success=bool(result.success),
-            optimizer_message=str(result.message),
-            n_iterations=int(result.nit),
-            final_objective=float(result.fun),
-            gradient_norm=gradient_norm,
-            hessian_eigenvalues=tuple(
-                float(v) for v in np.linalg.eigvalsh(hessian)
-            ),
-            covariance_repaired=repaired,
-            covariance_min_eigenvalue=cov_min_eig,
-            n_quad=self.n_quad,
+            n_quad=self.n_quad, **info
         )
         return NegativeBinomialFit(
             self, data, x, names, id_index, waves,
             y_filled, observed, missing, n_ids,
-            result.x, cov, diagnostics,
+            theta_hat, cov, diagnostics,
         )
 
 
@@ -366,45 +275,12 @@ class NegativeBinomialFit(BaseFit):
         }
 
     def _draw_intercepts(self, eta, kappa, tau, rng):
-        """Sample b_i from a normalized grid approximation to its
-        conditional posterior, expanding the grid until boundary mass is
-        below tolerance. Returns (draws, boundary_mass, expansions)."""
-        observed, id_index, n_ids = self._observed, self._id_index, self._n_ids
-        y, half = self._y_filled, _B_START_RANGE * tau
-        expansions = 0
-        while True:
-            n_points = max(int(2 * half / tau * _B_POINTS_PER_TAU) | 1, 51)
-            grid = np.linspace(-half, half, n_points)
-            log_post = np.zeros((n_ids, n_points))
-            for k, b in enumerate(grid):
-                ll = _nb_loglik(y[observed], eta[observed] + b, kappa)
-                log_post[:, k] = np.bincount(
-                    id_index[observed], ll, minlength=n_ids
-                )
-            log_post += -0.5 * (grid / tau) ** 2  # N(0, tau^2) prior kernel
-            log_post -= log_post.max(axis=1, keepdims=True)
-            mass = np.exp(log_post)
-            mass /= mass.sum(axis=1, keepdims=True)
-            boundary = float((mass[:, 0] + mass[:, -1]).max())
-            if boundary <= _B_BOUNDARY_TOL or expansions >= _B_MAX_EXPANSIONS:
-                break
-            half *= 1.5
-            expansions += 1
-        if boundary > _B_BOUNDARY_TOL:
-            raise RuntimeError(
-                "random-intercept grid boundary mass "
-                f"{boundary:.3g} still exceeds {_B_BOUNDARY_TOL:g} after "
-                f"{expansions} expansions; the conditional posterior is "
-                "not contained — inspect the fit"
-            )
-        cdf = np.cumsum(mass, axis=1)
-        cdf /= cdf[:, -1:]
-        u = rng.uniform(size=n_ids)
-        picks = (cdf < u[:, None]).sum(axis=1)
-        b = grid[np.minimum(picks, len(grid) - 1)]
-        has_obs = np.bincount(id_index[observed], minlength=n_ids) > 0
-        b[~has_obs] = tau * rng.standard_normal(int((~has_obs).sum()))
-        return b, boundary, expansions
+        return _glmm.draw_intercepts_grid(
+            self._y_filled, eta, self._observed, self._id_index, self._n_ids,
+            tau, rng,
+            row_loglik=lambda yy, e, extra: _nb_loglik(yy, e, extra[0]),
+            extra=(kappa,),
+        )
 
     def impute(
         self,
