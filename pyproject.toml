@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "longmi"
-version = "0.1.0a3.dev0"
+version = "0.1.0a3"
 description = "Multiple imputation for incomplete longitudinal outcomes with explicit validity conditions"
 readme = "README.md"
 license = { file = "LICENSE" }

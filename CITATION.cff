@@ -6,7 +6,7 @@ authors:
   - family-names: Danielson
     given-names: Aaron
     email: aaronjdanielson@gmail.com
-version: 0.1.0a2
+version: 0.1.0a3
 date-released: "2026-07-24"
 repository-code: "https://github.com/aaronjdanielson/longmi"
 license: MIT

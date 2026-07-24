@@ -10,7 +10,7 @@ from .contracts import AnalysisModel, Imputer, ValidityDeclaration
 from .data import CompletedDatasetCollection, LongitudinalData
 from .pooling import pool_rubin
 from .results import AnalysisEstimate, RubinPooledResult
-from .scenarios import DeltaAdjustment
+from .scenarios import DeltaAdjustment, DeltaScenario
 
 try:
     from importlib.metadata import PackageNotFoundError, version as _version
@@ -24,6 +24,7 @@ __all__ = [
     "CallableAnalysis",
     "CompletedDatasetCollection",
     "DeltaAdjustment",
+    "DeltaScenario",
     "Imputer",
     "LongitudinalData",
     "RubinPooledResult",

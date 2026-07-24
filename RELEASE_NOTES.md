@@ -1,4 +1,4 @@
-# longmi 0.1.0a3 (in preparation)
+# longmi 0.1.0a3
 
 Correctness and hardening release; no new statistical methods.
 

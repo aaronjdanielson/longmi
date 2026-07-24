@@ -5,7 +5,7 @@ algorithm docs) should defer to this file rather than restate status;
 detailed exact-vs-approximate computation claims live only in the
 algorithm pages.
 
-Version: `0.1.0a2` on PyPI; `0.1.0a3` in preparation (see RELEASE_NOTES.md). Public API is **experimental** —
+Version: `0.1.0a3` (see RELEASE_NOTES.md). Public API is **experimental** —
 expected to stabilize after the simulation grid below is complete.
 
 ## Feature maturity

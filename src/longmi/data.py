@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 __all__ = ["LongitudinalData", "CompletedDatasetCollection"]
 
-_OUTCOME_TYPES = ("continuous", "count")
+_OUTCOME_TYPES = ("continuous", "count", "binary")
 
 
 def _check_outcome_values(values: pd.Series, outcome_type: str, what: str) -> None:
@@ -39,6 +39,12 @@ def _check_outcome_values(values: pd.Series, outcome_type: str, what: str) -> No
             raise ValueError(f"{what}: count outcome has negative values")
         if not np.array_equal(arr, np.floor(arr)):
             raise ValueError(f"{what}: count outcome has non-integer values")
+    elif outcome_type == "binary":
+        if not np.isin(arr, (0.0, 1.0)).all():
+            bad = sorted(set(arr[~np.isin(arr, (0.0, 1.0))]))[:5]
+            raise ValueError(
+                f"{what}: binary outcome must be 0 or 1; found {bad}"
+            )
 
 
 class LongitudinalData:
@@ -171,6 +177,8 @@ class LongitudinalData:
                     f"predictor column {col!r} contains non-finite values"
                 )
 
+        if pd.api.types.is_bool_dtype(data[outcome_col]):
+            data[outcome_col] = data[outcome_col].astype(float)
         outcome = pd.to_numeric(data[outcome_col], errors="raise")
         data[outcome_col] = outcome.astype(float)
         observed = data[outcome_col].notna()

@@ -322,6 +322,11 @@ class JointGaussianFit(BaseFit):
             raise ValueError("m must be >= 2 for multiple imputation")
         imp = self._imputer
         delta = delta if delta is not None else imp.delta
+        if delta is not None and getattr(delta, "is_targeted", False):
+            raise NotImplementedError(
+                "targeted delta rules (where/times) are not yet supported "
+                "by this backend; use a scalar DeltaAdjustment"
+            )
         rng, rng_record = normalize_random_state(random_state)
         data, y, x = self._data, self._y, self._x
         mask = np.isnan(y)

@@ -81,6 +81,11 @@ def _nb_loglik(y: np.ndarray, log_mu: np.ndarray, kappa: float) -> np.ndarray:
 
 
 def _check_delta(delta: DeltaAdjustment | None) -> DeltaAdjustment | None:
+    if delta is not None and getattr(delta, "is_targeted", False):
+        raise NotImplementedError(
+            "targeted delta rules (where/times) are not yet supported by "
+            "this backend; use a scalar DeltaAdjustment"
+        )
     if delta is not None and delta.scale != "linear_predictor":
         raise ValueError(
             "count imputation supports delta adjustment on the "
