@@ -25,8 +25,10 @@ Report the result and its validity conditions
 ## Installation
 
 ```bash
-pip install -e ".[analysis]"     # from a checkout; not yet on PyPI
+pip install "longmi[analysis]"   # public alpha on PyPI
 ```
+
+Or from a checkout for development: `pip install -e ".[dev]"`.
 
 ## Quickstart
 
