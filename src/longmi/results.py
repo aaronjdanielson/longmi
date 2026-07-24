@@ -48,13 +48,16 @@ def _as_covariance(values: Any, p: int, what: str) -> np.ndarray:
     if not np.allclose(arr, arr.T, rtol=0.0, atol=_SYMMETRY_RTOL * scale):
         raise ValueError(f"{what} is not symmetric")
     sym = 0.5 * (arr + arr.T)
-    eig_scale = max(1.0, float(np.linalg.norm(sym, ord=2)))
-    min_eigenvalue = float(np.linalg.eigvalsh(sym).min())
-    if min_eigenvalue < -_PSD_RTOL * eig_scale:
-        raise ValueError(
-            f"{what} is not positive semidefinite; "
-            f"minimum eigenvalue={min_eigenvalue:.6g}"
-        )
+    if np.any(np.diag(sym) < 0):
+        raise ValueError(f"{what} contains a negative variance")
+    scale = float(np.max(np.abs(sym)))
+    if scale > 0:
+        min_eigenvalue = float(np.linalg.eigvalsh(sym / scale).min())
+        if min_eigenvalue < -_PSD_RTOL:
+            raise ValueError(
+                f"{what} is not positive semidefinite; "
+                f"relative minimum eigenvalue={min_eigenvalue:.6g}"
+            )
     return _freeze(sym)
 
 

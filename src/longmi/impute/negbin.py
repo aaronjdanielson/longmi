@@ -256,6 +256,16 @@ class NegativeBinomialImputer(BaseImputer):
         n_ids = int(id_index.max()) + 1
         y_filled = np.where(observed, y, 0.0)
 
+        if not observed.any():
+            raise ValueError(
+                "negative-binomial imputation requires at least one "
+                "observed outcome"
+            )
+        if np.linalg.matrix_rank(x[observed]) < x.shape[1]:
+            raise ValueError(
+                "the observed-data imputation design is rank deficient; "
+                "one or more fixed effects are not identified"
+            )
         nodes, weights = np.polynomial.hermite.hermgauss(self.n_quad)
         obs_y = y_filled[observed]
         pseudo = np.log(obs_y + 0.5)
@@ -411,13 +421,24 @@ class NegativeBinomialFit(BaseFit):
         total_expansions = 0
         kappa_range = [np.inf, -np.inf]
         tau_range = [np.inf, -np.inf]
+        rejected_draws = 0
         for _ in range(m):
-            theta = self.theta_hat + self._chol @ rng.standard_normal(
-                len(self.theta_hat)
-            )
+            for _attempt in range(50):
+                theta = self.theta_hat + self._chol @ rng.standard_normal(
+                    len(self.theta_hat)
+                )
+                kappa = float(np.exp(theta[p]))
+                tau = float(np.exp(theta[p + 1]))
+                if (np.isfinite(kappa) and np.isfinite(tau) and kappa > 0
+                        and tau > 0
+                        and np.isfinite(self._x @ theta[:p]).all()):
+                    break
+                rejected_draws += 1
+            else:
+                raise RuntimeError(
+                    "could not generate a numerically valid parameter draw"
+                )
             beta = theta[:p]
-            kappa = float(np.exp(theta[p]))
-            tau = float(np.exp(theta[p + 1]))
             kappa_range = [min(kappa_range[0], kappa), max(kappa_range[1], kappa)]
             tau_range = [min(tau_range[0], tau), max(tau_range[1], tau)]
             eta = x @ beta
@@ -444,6 +465,7 @@ class NegativeBinomialFit(BaseFit):
                 "fit_diagnostics": self.diagnostics,
                 "grid_max_boundary_mass": max_boundary_mass,
                 "grid_expansions": total_expansions,
+                "rejected_parameter_draws": rejected_draws,
                 "kappa_draw_range": tuple(kappa_range),
                 "tau_draw_range": tuple(tau_range),
             },

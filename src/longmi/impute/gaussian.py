@@ -152,26 +152,27 @@ class JointGaussianImputer(BaseImputer):
         if j < 2:
             raise ValueError("need at least 2 waves")
 
+        # participant order comes from the validated long frame itself —
+        # never re-sorted (ordered categorical IDs sort differently from
+        # their labels, which silently misaligned imputations before)
+        participant_order = frame[data.id_col].drop_duplicates().tolist()
         y_wide = frame.pivot(
             index=data.id_col, columns=data.time_col, values=data.outcome_col
-        )
-        if set(y_wide.columns) != set(waves) or y_wide.shape != (
+        ).reindex(index=participant_order, columns=waves)
+        if y_wide.isna().to_numpy().sum() != data.n_missing or y_wide.shape != (
             data.n_participants,
             j,
         ):
-            raise ValueError("unexpected wide shape")
-        counts = frame.groupby(data.id_col, sort=True).size()
-        if (counts != j).any():
-            bad = counts[counts != j].index.tolist()[:5]
             raise ValueError(
-                f"participants without a row for every design wave, e.g. {bad}; "
-                "the joint Gaussian imputer requires a complete row grid "
+                "participants without a row for every design wave; the joint "
+                "Gaussian imputer requires a complete row grid "
                 "(missing outcomes are fine, missing rows are not)"
             )
-        y_wide = y_wide.loc[sorted(y_wide.index), waves]
 
         for col in data.predictor_cols:
-            per_id = frame.groupby(data.id_col, sort=True)[col].nunique()
+            per_id = frame.groupby(data.id_col, sort=False, observed=True)[
+                col
+            ].nunique()
             if (per_id > 1).any():
                 raise ValueError(
                     f"predictor {col!r} varies within participant; the joint "
@@ -180,7 +181,7 @@ class JointGaussianImputer(BaseImputer):
         x_frame = (
             frame.drop_duplicates(data.id_col)
             .set_index(data.id_col)
-            .loc[y_wide.index, list(data.predictor_cols)]
+            .reindex(participant_order)[list(data.predictor_cols)]
         )
         try:
             x = x_frame.to_numpy(dtype=float)
@@ -192,6 +193,10 @@ class JointGaussianImputer(BaseImputer):
 
         n = len(y_wide)
         x = np.column_stack([np.ones(n), x])
+        if np.linalg.matrix_rank(x) < x.shape[1]:
+            raise ValueError(
+                "Gaussian imputation design matrix is rank deficient"
+            )
         k = x.shape[1]
         if n - k < j:
             raise ValueError(
@@ -202,6 +207,15 @@ class JointGaussianImputer(BaseImputer):
 
     def fit(self, data: LongitudinalData) -> "JointGaussianFit":
         y, x, waves = self._wide_arrays(data)
+        # mechanical invariant: the flattened wide mask must equal the
+        # validated long mask, in order
+        if not np.array_equal(
+            np.isnan(y).ravel(), data.missing_mask.to_numpy()
+        ):
+            raise RuntimeError(
+                "internal wide/long missing-value alignment failed"
+            )
+        self._initial_fill(y, x)  # fail at fit time, not first impute
         return JointGaussianFit(self, data, y, x, waves)
 
     # -- draws (used by the fit object) -----------------------------------
@@ -255,8 +269,14 @@ class JointGaussianImputer(BaseImputer):
             else:
                 cond_mean = mu[i, mis]
                 cond_cov = sigma[np.ix_(mis, mis)]
-            chol = np.linalg.cholesky(cond_cov)
-            out[i, mis] = cond_mean + chol @ rng.standard_normal(int(mis.sum()))
+            eigval, eigvec = np.linalg.eigh(cond_cov)
+            scale = max(float(np.max(np.abs(eigval))), np.finfo(float).tiny)
+            if eigval.min() < -1e-10 * scale:
+                raise RuntimeError(
+                    "conditional Gaussian covariance is materially indefinite"
+                )
+            factor = eigvec @ np.diag(np.sqrt(np.maximum(eigval, 0.0)))
+            out[i, mis] = cond_mean + factor @ rng.standard_normal(int(mis.sum()))
         return out
 
 

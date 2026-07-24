@@ -1,3 +1,28 @@
+# longmi 0.1.0a3 (in preparation)
+
+Correctness and hardening release; no new statistical methods.
+
+* **Fixed: silent Gaussian imputation misalignment with ordered
+  categorical participant IDs** whose category order differs from label
+  order. The wide representation now retains the validated long-frame
+  participant order exactly, with a mechanical wide/long mask invariant
+  and a regression test. (0.1.0a2 users: use numeric or ordinary string
+  IDs with the joint Gaussian imputer.)
+* Predictors must now be genuinely numeric and finite at data
+  construction (booleans become 0/1; categoricals must be
+  indicator-encoded); empty frames are rejected.
+* Covariance validation: negative diagonals always rejected; positive
+  semidefiniteness judged relative to the matrix's own scale (tiny
+  absolute matrices no longer pass on the unit-scale tolerance).
+* StatsmodelsGEE sorts by cluster (and time when given) internally and
+  requires an explicit time column for autoregressive correlation.
+* Gaussian backend: design rank check, fit-time initialization
+  validation, eigenvalue-based conditional-covariance draws with a
+  materially-indefinite guard.
+* NB backend: observed-data existence and rank checks; bounded rejection
+  sampling for numerically invalid parameter draws (counts reported in
+  run metadata, never silent clipping).
+
 # longmi 0.1.0a1 — public alpha
 
 First public pre-release. Usable, documented, and initially validated; the

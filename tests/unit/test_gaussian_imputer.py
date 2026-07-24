@@ -250,3 +250,41 @@ class TestStatisticalRecovery:
                 2.0,
                 rtol=1e-12,
             )
+
+
+class TestCategoricalIdAlignment:
+    def test_ordered_categorical_ids_align_wide_and_long(self):
+        """Regression for the a2 alignment bug: ordered categorical IDs
+        whose category order differs from label order must not misassign
+        imputations."""
+        import pandas as pd
+
+        rng = np.random.default_rng(99)
+        ids = [f"id{k}" for k in range(8)]
+        cat_order = ["id5", "id1", "id7", "id0", "id3", "id6", "id2", "id4"]
+        rows = []
+        for k, pid in enumerate(ids):
+            for w in (1, 2, 3):
+                rows.append((pid, w, float(rng.normal()), float(k % 2)))
+        frame = pd.DataFrame(rows, columns=["pid", "wave", "y", "treat"])
+        frame["pid"] = pd.Categorical(frame["pid"], categories=cat_order,
+                                      ordered=True)
+        frame.loc[1, "y"] = np.nan   # id0 wave 2 in original order
+        frame.loc[9, "y"] = np.nan   # id3 wave 1
+        data = LongitudinalData(
+            frame, id_col="pid", time_col="wave", outcome_col="y",
+            predictor_cols=("treat",), times=(1, 2, 3),
+        )
+        imputer = JointGaussianImputer(burn_in=5, thin=2,
+                                       allow_undeclared_times=True)
+        y, x, waves = imputer._wide_arrays(data)
+        np.testing.assert_array_equal(
+            np.isnan(y).ravel(), data.missing_mask.to_numpy()
+        )
+        # end to end: fit + impute must run and preserve observed values
+        collection = imputer.fit(data).impute(2, random_state=1)
+        obs = ~data.missing_mask
+        for f in collection:
+            np.testing.assert_array_equal(
+                f.loc[obs, "y"].to_numpy(), data.frame.loc[obs, "y"].to_numpy()
+            )

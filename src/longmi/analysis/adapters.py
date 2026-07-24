@@ -256,6 +256,12 @@ class StatsmodelsGEE(BaseAnalysis):
 
     def fit(self, frame: pd.DataFrame) -> AnalysisEstimate:
         sm, smf = self._statsmodels()
+        if self.cov_struct == "autoregressive" and self.time is None:
+            raise ValueError("autoregressive GEE requires an explicit time column")
+        sort_columns = [self.groups] + ([self.time] if self.time else [])
+        frame = frame.sort_values(sort_columns, kind="mergesort").reset_index(
+            drop=True
+        )
         model = smf.gee(
             self.formula,
             groups=self.groups,

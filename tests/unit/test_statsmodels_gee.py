@@ -61,10 +61,14 @@ class TestExactStatsmodelsAgreement:
         )
         ours = adapter.fit(frame)
 
+        # the adapter sorts by cluster (stable); compare on the same order
+        sorted_frame = frame.sort_values("pid", kind="mergesort").reset_index(
+            drop=True
+        )
         direct = smf.gee(
             FORMULA,
             groups="pid",
-            data=frame,
+            data=sorted_frame,
             family=sm.families.Poisson(),
             cov_struct=sm.cov_struct.Exchangeable(),
         ).fit(cov_type="robust")
@@ -84,20 +88,23 @@ class TestExactStatsmodelsAgreement:
     def test_longitudinal_data_round_trip_does_not_change_the_fit(self, frame):
         """Wrapping in LongitudinalData (validation, sorting, float outcome)
         must not perturb the GEE in any way."""
+        # categorical predictors must be indicator-encoded (0.1 contract)
+        encoded = frame.assign(cohort_v1=(frame["cohort"] == "V1").astype(float))
         data = LongitudinalData(
-            frame,
+            encoded,
             id_col="pid",
             time_col="time_months",
             outcome_col="y",
-            predictor_cols=("exposed", "cohort"),
+            predictor_cols=("exposed", "cohort_v1"),
             outcome_type="count",
         )
         adapter = StatsmodelsGEE(
-            FORMULA, groups="pid", family="poisson", cov_struct="exchangeable"
+            "y ~ exposed * time_months + cohort_v1",
+            groups="pid", family="poisson", cov_struct="exchangeable"
         )
         via_longmi = adapter.fit(data.frame)
         sorted_direct = adapter.fit(
-            frame.sort_values(["pid", "time_months"]).reset_index(drop=True)
+            encoded.sort_values(["pid", "time_months"]).reset_index(drop=True)
         )
         np.testing.assert_array_equal(
             via_longmi.estimates, sorted_direct.estimates

@@ -104,6 +104,8 @@ class LongitudinalData:
             raise ValueError(f"frame is missing required columns: {missing_cols}")
 
         data = frame.loc[:, required].copy()
+        if data.empty:
+            raise ValueError("frame must contain at least one participant")
 
         if data[id_col].isna().any():
             raise ValueError(f"id column {id_col!r} contains missing values")
@@ -157,9 +159,14 @@ class LongitudinalData:
                     f"predictor column {col!r} contains missing values; "
                     "longmi 0.1 requires fully observed predictors"
                 )
-            if pd.api.types.is_numeric_dtype(data[col]) and not np.all(
-                np.isfinite(data[col].to_numpy(dtype=float))
-            ):
+            if pd.api.types.is_bool_dtype(data[col]):
+                data[col] = data[col].astype(float)
+            elif not pd.api.types.is_numeric_dtype(data[col]):
+                raise TypeError(
+                    f"predictor {col!r} must be numeric; encode categorical "
+                    "variables as indicator columns"
+                )
+            if not np.isfinite(data[col].to_numpy(dtype=float)).all():
                 raise ValueError(
                     f"predictor column {col!r} contains non-finite values"
                 )

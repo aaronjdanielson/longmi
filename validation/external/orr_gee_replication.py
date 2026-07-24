@@ -76,6 +76,7 @@ def load_paper_frame() -> pd.DataFrame:
     frame["time_months"] = frame["Time"].astype(float)
     frame["total_meds"] = pd.to_numeric(frame["TotalMeds"], errors="coerce")
     frame["registry_cohort"] = frame["Cohort"]
+    frame["cohort_v1"] = (frame["Cohort"] == "V1").astype(float)
     frame = frame.sort_values(["ID", "Time"]).reset_index(drop=True)
 
     baseline = frame[frame["Time"] == 0]
@@ -90,7 +91,7 @@ def load_paper_frame() -> pd.DataFrame:
     print(f"analytic frame matches the manuscript: {counts}")
     return frame[
         ["ID", "Time", "total_meds", "cannabis_user", "time_months",
-         "registry_cohort"]
+         "registry_cohort", "cohort_v1"]
     ]
 
 
@@ -110,7 +111,7 @@ def main() -> int:
         id_col="ID",
         time_col="Time",
         outcome_col="total_meds",
-        predictor_cols=("cannabis_user", "time_months", "registry_cohort"),
+        predictor_cols=("cannabis_user", "time_months", "cohort_v1"),
         outcome_type="count",
     )
     print(
@@ -123,7 +124,23 @@ def main() -> int:
         family="poisson",
         cov_struct="exchangeable",
     )
-    ours = adapter.fit(data.frame)
+    ours = adapter.fit(frame)  # exact: same frame, same formula
+    mi_path = StatsmodelsGEE(
+        "total_meds ~ cannabis_user * time_months + cohort_v1",
+        groups="ID", family="poisson", cov_struct="exchangeable",
+    ).fit(data.frame)
+    # indicator coding reorders/renames terms; the fitted values match
+    remap = {"Intercept": "Intercept",
+             "C(registry_cohort, Treatment(reference='V2'))[T.V1]": "cohort_v1",
+             "cannabis_user": "cannabis_user",
+             "time_months": "time_months",
+             "cannabis_user:time_months": "cannabis_user:time_months"}
+    for src, dst in remap.items():
+        a = ours.estimates[ours.names.index(src)]
+        b = mi_path.estimates[mi_path.names.index(dst)]
+        if abs(a - b) > 1e-8:
+            sys.exit(f"longmi data-path coefficient differs for {src}")
+    print("longmi LongitudinalData path numerically equivalent")
 
     failures = []
     if ours.names != tuple(direct.params.index):
