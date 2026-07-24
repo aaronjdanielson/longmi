@@ -32,11 +32,19 @@ checked against the truth it is trying to recover. Implementation lives in
    bootstrap re-estimating the weights per replicate). *(done — see
    `comparison_table.csv`)*
 9. **Delta-adjusted MNAR sensitivity analysis** — a seven-point response
-   curve (`delta_response.csv`, means x0.7...x1.4) — plus the
-   `mnar_stress_test` demonstration: MAR imputation applied to
-   MNAR-generated missingness (`mi_under_mnar` in the comparison table).
-   MI can be correctly implemented and still be biased when MAR is false.
-   *(done)*
+   curve (`delta_response.csv`, means x0.7...x1.4). The deltas are
+   *sensitivity scenarios, not estimated corrections*: the curve answers
+   "how would the estimate move if missing outcomes were systematically
+   shifted relative to their MAR predictions?", never "which delta is
+   true?". Plus the **MNAR stress test in a single induced-missingness
+   realization** (`mi_under_mnar`): MAR imputation applied to
+   MNAR-generated missingness. In this single dataset the headline
+   interaction changed only modestly under the MNAR mask — a single
+   realization is not a validation study; the release-scale simulations
+   (see [project status](../project-status.md)) demonstrate the
+   systematic bias and lost coverage that arise when MAR is imposed under
+   the evaluated MNAR mechanism. The epil example demonstrates *how to
+   perform and interpret* the stress test. *(done)*
 10. **Reproduce the MI workflow in R** (`run_mi_reference.R`: wide-format
     mice PMM + geepack + mice::pool on the same mask) — a *cross-method
     statistical comparison*, not backend parity: pooled estimates agree

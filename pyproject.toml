@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "longmi"
-version = "0.1.0.dev0"
+version = "0.1.0a1"
 description = "Multiple imputation for incomplete longitudinal outcomes with explicit validity conditions"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -16,7 +16,7 @@ dependencies = [
     "scipy>=1.10",
 ]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Mathematics",

@@ -1,0 +1,4 @@
+660840b2f3b168961fab8bf69714ed44f9ddd3f0
+# The code commit the release-scale simulation was generated from.
+# The archived results are committed separately, after this commit —
+# a commit cannot contain its own SHA.

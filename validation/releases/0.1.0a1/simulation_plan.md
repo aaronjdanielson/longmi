@@ -16,5 +16,7 @@ the scenario matrix and harness.py for the gate definitions.
   under violated assumptions / numerically unstable / not yet evaluated.
 
 To reproduce: `LONGMI_SIM_REPS=500 pytest -m slow tests/simulation -q -s`
-at the commit recorded in commit_sha.txt; raw pytest output is archived in
+at the code commit recorded in source_commit.txt (the archive itself is
+committed afterward — a commit cannot contain its own SHA); raw pytest
+output is archived in
 simulation_output.txt alongside environment_python.txt.

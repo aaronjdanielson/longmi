@@ -300,8 +300,9 @@ def main() -> None:
         f"{len(available)} available-case rows"
     )
 
-    # MNAR failure demonstration: MAR imputation applied to missingness
-    # that depends on the current, hidden count
+    # MNAR stress test (single realization — the systematic failure
+    # demonstration lives in tests/simulation): MAR imputation applied
+    # to missingness that depends on the current, hidden count
     mnar_mask = pd.read_csv(mask_path("mnar_stress_test"))
     observed_mnar = apply_mask(epil, mnar_mask)
     print(

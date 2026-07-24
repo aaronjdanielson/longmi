@@ -82,7 +82,19 @@ evidence in either direction; the simulation suite
 ([tests/simulation/](../../tests/simulation/)) is what establishes bias
 and coverage.
 
-## Remaining narrative steps
+## IPW, MNAR stress test, delta curve, R comparison (implemented)
 
-IPW comparison arm and the R reproduction of the MI workflow — see
-[docs/examples/epilepsy_counts.md](../../docs/examples/epilepsy_counts.md).
+`run_python.py` also fits IPW-GEE (stabilized sequential-MAR weights;
+respondent-level bootstrap re-estimating the weights per replicate), runs
+the MNAR stress test (`mi_under_mnar`) and the seven-point delta response
+curve, and writes `comparison_table.csv`; `run_mi_reference.R` is the
+cross-method R MI comparison (mice wide-PMM). Interpretation notes: in
+this realization IPW lands nearest the benchmark, consistent with the
+fitted response model matching the mechanism that generated the mask —
+but even a correctly specified estimator is not guaranteed to be closest
+in every finite sample; the justification is repeated-sampling behavior
+(the simulation suite), not one dataset-level comparison. Likewise the
+single-realization MNAR row is a stress-test illustration, not the
+failure demonstration — that lives in the release-scale simulations. The
+delta multipliers are sensitivity scenarios, not estimated corrections.
+See [docs/examples/epilepsy_counts.md](../../docs/examples/epilepsy_counts.md).

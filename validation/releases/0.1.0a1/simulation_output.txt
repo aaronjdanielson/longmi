@@ -10,3 +10,9 @@ negbin omitted-interaction (expected failure): reps=500 fail=0 truth=+0.4900 bia
 .
 negbin MNAR-under-MAR (expected failure): reps=500 fail=10 truth=+7.4109 bias=-3.8145 (mc se 0.0233, std -7.381) rmse=3.8493 sd=0.5168 se_ratio=1.158 coverage=0.018 width=2.6858 fmi=0.723
 .
+gaussian omitted-auxiliary (expected failure): reps=500 fail=0 truth=+3.0000 bias=-0.1575 (mc se 0.0064, std -1.100) rmse=0.2128 sd=0.1432 se_ratio=0.995 coverage=0.798 width=0.5835 fmi=0.419
+.
+gaussian mcar: reps=500 fail=0 truth=+1.2000 bias=-0.0136 (mc se 0.0090, std -0.068) rmse=0.2016 sd=0.2013 se_ratio=0.983 coverage=0.948 width=0.7885 fmi=0.243
+.
+gaussian mar: reps=500 fail=0 truth=+1.2000 bias=+0.0029 (mc se 0.0099, std +0.013) rmse=0.2221 sd=0.2223 se_ratio=0.958 coverage=0.944 width=0.8569 fmi=0.345
+.
