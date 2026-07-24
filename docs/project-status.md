@@ -25,34 +25,34 @@ expected to stabilize after the simulation grid below is complete.
 ## Simulation evidence to date
 
 Seeded studies in `tests/simulation/` (`pytest -m slow`) with
-pre-specified, Monte-Carlo-aware gates; smoke run at 40 replications
-(scale with `LONGMI_SIM_REPS`; the archived 1000-replicate release report
-is pending). Standardized bias = bias / empirical SD; SE ratio = mean
-reported SE / empirical SD.
+pre-specified, Monte-Carlo-aware gates. **Release-scale run archived at
+500 replicates/scenario** in `validation/releases/0.1.0a1/`
+(simulation_summary.md is the authoritative table; source commit
+recorded there). Standardized bias = bias / empirical SD; SE ratio =
+mean reported SE / empirical SD. Headline 500-rep results:
 
 **Validated scenarios** (correct model; gates: low failure rate,
 unbiasedness, nominal coverage, SE calibration):
 
 | Study | Std. bias | Coverage | SE ratio | Mean FMI | Failures |
 | --- | --- | --- | --- | --- | --- |
-| Gaussian, MCAR 25%, wave-3 treatment effect | −0.08 | 1.000 | 1.12 | 0.24 | 0/40 |
-| Gaussian, monotone MAR, same target | −0.10 | 1.000 | 1.09 | 0.34 | 0/40 |
-| Gaussian, intermittent (non-monotone) MAR | +0.21 | 0.975 | 1.18 | 0.21 | 0/40 |
-| NB + Poisson GEE + Rubin, monotone MAR, treat×wave-3 | −0.09 | 0.950 | 1.11 | 0.37 | 0/40 |
-| NB + GEE, intermittent MAR | +0.25 | 0.925 | 0.95 | 0.27 | 0/40 |
-| NB + GEE, high-missingness stress (ORR-like attrition) | +0.16 | 0.950 | 1.09 | **0.59** | 0/40 |
+| Gaussian, MCAR 25%, wave-3 treatment effect | −0.07 | 0.948 | 0.98 | 0.24 | 0/500 |
+| Gaussian, monotone MAR, same target | +0.01 | 0.944 | 0.96 | 0.35 | 0/500 |
+| Gaussian, intermittent (non-monotone) MAR | −0.08 | 0.964 | 1.03 | 0.22 | 0/500 |
+| NB + Poisson GEE + Rubin, monotone MAR, treat×wave-3 | +0.01 | 0.960 | 1.03 | 0.39 | 0/500 |
+| NB + GEE, intermittent MAR | −0.08 | 0.948 | 1.00 | 0.25 | 0/500 |
+| NB + GEE, high-missingness stress (ORR-like attrition) | +0.11 | 0.942 | 0.94 | **0.63** | 4/500 (0.8%) |
 
-(Standardized biases at 40 reps carry MC SE ≈ 0.16; the gates account for
-this and tighten automatically at higher replication counts.)
+(MCSE of coverage at S=500 is ~0.0097.)
 
 **Expected-failure demonstrations** (one assumption deliberately violated;
 gates: the violation must visibly bite):
 
 | Study | Violated | Std. bias | Coverage | Note |
 | --- | --- | --- | --- | --- |
-| NB imputation omitting the exposure-by-time interaction | A8 | **−1.31** (attenuation) | 0.950 | bias is masked by conservative Rubin SEs (SE ratio 1.46) — the Meng (1994) uncongeniality phenomenon in action |
-| MNAR generation analyzed under MAR (NB, wave-3 mean) | A2 | **−8.12** | **0.000** | MAR MI does not rescue MNAR |
-| Gaussian imputation omitting a covariate driving outcome and dropout | A5/A8 | **−1.08** | 0.800 | conditioning on too little turns MAR into effective MNAR |
+| NB imputation omitting the exposure-by-time interaction | A8 | **−1.48** (attenuation) | 0.950 | bias is masked by conservative Rubin SEs (SE ratio 1.63) — the Meng (1994) uncongeniality phenomenon in action |
+| MNAR generation analyzed under MAR (NB, wave-3 mean) | A2 | **−7.38** | **0.018** | MAR MI does not rescue MNAR |
+| Gaussian imputation omitting a covariate driving outcome and dropout | A5/A8 | **−1.10** | 0.798 | conditioning on too little turns MAR into effective MNAR |
 
 **Delta-response curve** (NB, shared randomness across scenarios): the
 pooled wave-3 mean is strictly increasing in delta
@@ -61,7 +61,7 @@ spread matches the imputed share of wave-3 cells.
 
 Not yet demonstrated: wider grids over sample size / missingness fraction
 / correlation / overdispersion, misspecified dependence structures, R
-parity for the imputation backends, the archived high-replication report.
+parity for the imputation backends.
 **The backends should not be described as statistically validated beyond
 this table.**
 

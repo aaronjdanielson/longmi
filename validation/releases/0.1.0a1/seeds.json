@@ -1,0 +1,17 @@
+{
+  "harness": "numpy SeedSequence(seed).spawn(reps), one child per replicate",
+  "study_seeds": {
+    "gaussian_mcar": 901,
+    "gaussian_mar": 902,
+    "negbin_mar": 903,
+    "gaussian_intermittent_mar": 904,
+    "negbin_intermittent_mar": 905,
+    "negbin_high_missingness": 906,
+    "negbin_omitted_interaction": 907,
+    "negbin_mnar_under_mar": 908,
+    "gaussian_omitted_auxiliary": 909,
+    "delta_response_data": 910,
+    "delta_response_imputation": 911
+  },
+  "reps": 500
+}

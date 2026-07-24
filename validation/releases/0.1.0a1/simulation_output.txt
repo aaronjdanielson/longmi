@@ -16,3 +16,25 @@ gaussian mcar: reps=500 fail=0 truth=+1.2000 bias=-0.0136 (mc se 0.0090, std -0.
 .
 gaussian mar: reps=500 fail=0 truth=+1.2000 bias=+0.0029 (mc se 0.0099, std +0.013) rmse=0.2221 sd=0.2223 se_ratio=0.958 coverage=0.944 width=0.8569 fmi=0.345
 .
+gaussian intermittent mar: reps=500 fail=0 truth=+1.2000 bias=-0.0154 (mc se 0.0084, std -0.081) rmse=0.1893 sd=0.1888 se_ratio=1.029 coverage=0.964 width=0.7724 fmi=0.216
+.
+negbin mar: reps=500 fail=0 truth=+0.3986 bias=+0.0013 (mc se 0.0116, std +0.005) rmse=0.2594 sd=0.2597 se_ratio=1.030 coverage=0.960 width=1.0786 fmi=0.387
+.
+negbin intermittent mar: reps=500 fail=0 truth=+0.3986 bias=-0.0183 (mc se 0.0109, std -0.075) rmse=0.2437 sd=0.2432 se_ratio=1.003 coverage=0.948 width=0.9692 fmi=0.254
+.
+negbin high-missingness: reps=500 fail=4 truth=+0.3986 bias=+0.0391 (mc se 0.0166, std +0.106) rmse=0.3709 sd=0.3692 se_ratio=0.937 coverage=0.942 width=1.4565 fmi=0.627
+.
+=============================== warnings summary ===============================
+tests/simulation/test_expected_failures.py::TestMnarIsNotRescuedByMarImputation::test_wave3_mean_remains_biased
+tests/simulation/test_negbin_coverage.py::TestNegBinImputerFrequentistValidity::test_high_missingness_stress
+tests/simulation/test_negbin_coverage.py::TestNegBinImputerFrequentistValidity::test_high_missingness_stress
+tests/simulation/test_negbin_coverage.py::TestNegBinImputerFrequentistValidity::test_high_missingness_stress
+  /Users/aarondanielson/Dropbox/longmi/src/longmi/impute/negbin.py:420: RuntimeWarning: overflow encountered in exp
+    tau = float(np.exp(theta[p + 1]))
+
+tests/simulation/test_expected_failures.py::TestMnarIsNotRescuedByMarImputation::test_wave3_mean_remains_biased
+  /Users/aarondanielson/Dropbox/longmi/src/longmi/impute/negbin.py:430: RuntimeWarning: overflow encountered in exp
+    lam = rng.gamma(shape=kappa, scale=np.exp(log_mu) / kappa)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+10 passed, 5 warnings in 2965.58s (0:49:25)

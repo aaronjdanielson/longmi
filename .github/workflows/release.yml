@@ -1,0 +1,128 @@
+name: Release
+
+# Tag-triggered release with Trusted Publishing (OIDC, no stored tokens):
+# build once -> TestPyPI -> installed-package smoke test -> manual approval
+# of the protected `pypi` environment -> publish the SAME artifacts to
+# PyPI. Ordinary CI (ci.yml) never has publishing permissions. The
+# pypa/gh-action-pypi-publish steps stay directly in this top-level
+# workflow (Trusted Publishing is unsupported from reusable workflows).
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Verify tag matches package version
+        run: |
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "tag=${GITHUB_REF_NAME} version=${VERSION}"
+          test "${GITHUB_REF_NAME}" = "v${VERSION}"
+      - name: Build sdist and wheel once
+        run: |
+          pip install build twine
+          python -m build
+          python -m twine check --strict dist/*
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-dist
+          path: dist/
+          retention-days: 14
+
+  publish-testpypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/longmi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          print-hash: true
+
+  smoke-test-testpypi:
+    needs: publish-testpypi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install the exact tagged version from TestPyPI (with retry)
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          for attempt in 1 2 3 4 5 6; do
+            python -m pip install --pre \
+              --index-url https://test.pypi.org/simple/ \
+              --extra-index-url https://pypi.org/simple/ \
+              "longmi==${VERSION}" && break
+            echo "not yet available (attempt ${attempt}); waiting 30s"
+            sleep 30
+          done
+          python -c "import longmi; print(longmi.__version__)"
+      - name: Smoke test the installed package (outside any checkout)
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd "$(mktemp -d)"
+          python - <<EOF
+          import numpy as np, pandas as pd
+          import longmi
+          from longmi import CallableAnalysis, AnalysisEstimate, LongitudinalData, pool_rubin
+          from longmi.impute import JointGaussianImputer
+          assert longmi.__version__ == "${VERSION}", longmi.__version__
+          rng = np.random.default_rng(1)
+          n = 60
+          treat = (rng.uniform(size=n) < 0.5).astype(float)
+          y = 1.0 + 0.5 * treat[:, None] + rng.standard_normal((n, 3))
+          frame = pd.DataFrame({
+              "pid": np.repeat(np.arange(n), 3),
+              "wave": np.tile((1, 2, 3), n),
+              "y": y.ravel(),
+              "treat": np.repeat(treat, 3),
+          })
+          frame.loc[(frame["wave"] > 1) & (rng.uniform(size=len(frame)) < 0.2), "y"] = np.nan
+          data = LongitudinalData(frame, id_col="pid", time_col="wave",
+                                  outcome_col="y", predictor_cols=("treat",),
+                                  times=(1, 2, 3))
+          fit = JointGaussianImputer(burn_in=50, thin=5).fit(data)
+          completed = fit.impute(3, random_state=2)
+          def mean_y(f):
+              v = f["y"].to_numpy()
+              return AnalysisEstimate(names=("mean",), estimates=[v.mean()],
+                                      covariance=[[v.var(ddof=1) / len(v)]])
+          result = pool_rubin(completed.analyze(CallableAnalysis(mean_y)),
+                              validity=completed.declaration)
+          assert result.se[0] > 0
+          print("smoke ok:", result.qbar[0])
+          print(result.validity_report())
+          EOF
+
+  publish-pypi:
+    needs: [build, smoke-test-testpypi]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi  # protected: requires manual approval
+      url: https://pypi.org/p/longmi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          print-hash: true
