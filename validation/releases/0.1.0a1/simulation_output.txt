@@ -6,3 +6,7 @@ delta response (wave-3 mean):
   delta=+0.140 (x1.15) -> 8.4145
   delta=+0.336 (x1.40) -> 9.6555
 .
+negbin omitted-interaction (expected failure): reps=500 fail=0 truth=+0.4900 bias=-0.2392 (mc se 0.0072, std -1.483) rmse=0.2885 sd=0.1613 se_ratio=1.631 coverage=0.950 width=1.0549 fmi=0.345
+.
+negbin MNAR-under-MAR (expected failure): reps=500 fail=10 truth=+7.4109 bias=-3.8145 (mc se 0.0233, std -7.381) rmse=3.8493 sd=0.5168 se_ratio=1.158 coverage=0.018 width=2.6858 fmi=0.723
+.
